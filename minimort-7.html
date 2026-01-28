@@ -2,14 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>PDF Tool • Multi-file • Region & Polygon Filter</title>
+<title>PDF Tool • Multi-file • Region & Polygon Filter • Adjacency</title>
 
 <!-- ===== Config (JSON) ===== -->
 <script type="application/json" id="app-config">
 {
   "highlightColor": "rgba(0,128,0,0.35)",
   "regionColor": { "fill": "rgba(0,128,0,0.25)", "stroke": "rgba(0,128,0,0.9)" },
-  "thumbWidth": 56
+  "relationColor": { "fill": "rgba(128,0,128,0.25)", "stroke": "rgba(128,0,128,0.9)" },
+  "thumbWidth": 56,
+  "adjacency": {
+    "horizontalThreshold": 100,
+    "verticalThreshold": 20,
+    "sameRowTolerance": 0.5,
+    "sameColTolerance": 0.5
+  }
 }
 </script>
 
@@ -57,6 +64,8 @@
   thead{background:var(--green);color:#fff}
   th,td{border:1px solid #ddd;padding:.4rem;vertical-align:top}
   .flash{animation:flash .6s} @keyframes flash{0%{background:#fff2a8}100%{background:transparent}}
+  td.rels{color:#660066;font-size:.85em;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+  tr:hover{background:#f5f0f5}
 
   /* Help modal */
   #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);align-items:center;justify-content:center}
@@ -114,10 +123,12 @@
       <a id="loadTagsLink" class="link">Load Tag List</a><input id="tagsFile" type="file" accept=".csv,.txt" hidden>
       <a id="loadLabelsLink" class="link">Load Label CSV</a><input id="labelsFile" type="file" accept=".csv" hidden>
       <a id="dlLabelTplLink" class="link">Download Label CSV</a>
+      <a id="loadAdjLink" class="link">Load Adjacency Rules</a><input id="adjFile" type="file" accept=".csv" hidden>
+      <a id="dlAdjTplLink" class="link">Download Adjacency Template</a>
     </div>
     <table id="tbl">
       <thead><tr>
-        <th>Selected</th><th>File #</th><th>Page #</th><th>Text Content</th><th>Labels</th><th>X1</th><th>Y1</th><th>X2</th><th>Y2</th>
+        <th>Selected</th><th>File #</th><th>Page #</th><th>Text Content</th><th>Labels</th><th>Relationships</th><th>X1</th><th>Y1</th><th>X2</th><th>Y2</th>
       </tr></thead>
       <tbody></tbody>
     </table>
@@ -130,10 +141,18 @@
   <pre style="white-space:pre-wrap">
 • Left strip shows thumbnails for the current file (all pages). Click to jump pages. Collapse with the link; reopen with the ☰ in the top bar.
 • Draw a green rectangle; hold Alt to add multiple. Shift+click to start a polygon, click to add vertices, release Shift to close. Alt+Shift to add without replacing.
-• Click a text block to toggle “Selected”.
+• Click a text block to toggle "Selected".
 • Esc clears selection. Ctrl+F exports filtered CSV. Ctrl+C copies visible text.
-• Mouse wheel over the viewer zooms; right-mouse drag pans; “Fit” fits width.
+• Mouse wheel over the viewer zooms; right-mouse drag pans; "Fit" fits width.
 • Shift+← / Shift+→ switches files.
+
+<b>Adjacency Relationships:</b>
+• Load adjacency rules CSV to define relationships between labeled items.
+• Adjacency rules format: source_label,direction,target_label,output_name
+• Directions: left, right, above, below, nearest
+• Example: "Total,right,*,total_value" finds any item to the right of "Total"
+• Relationships are shown in the table and exported to CSV.
+• Hover over a row to highlight related items on the canvas.
   </pre>
   <button id="closeHelp">Close</button>
 </div></div>
@@ -144,7 +163,14 @@ const CONFIG = (()=>{ try{ return JSON.parse(document.getElementById('app-config
 const HIGHLIGHT_COLOR = CONFIG.highlightColor || 'rgba(0,128,0,0.35)';
 const REGION_FILL = (CONFIG.regionColor && CONFIG.regionColor.fill) || 'rgba(0,128,0,0.25)';
 const REGION_STROKE = (CONFIG.regionColor && CONFIG.regionColor.stroke) || 'rgba(0,128,0,0.9)';
+const RELATION_FILL = (CONFIG.relationColor && CONFIG.relationColor.fill) || 'rgba(128,0,128,0.25)';
+const RELATION_STROKE = (CONFIG.relationColor && CONFIG.relationColor.stroke) || 'rgba(128,0,128,0.9)';
 const THUMB_W = CONFIG.thumbWidth || 56;
+const ADJ_CONFIG = CONFIG.adjacency || {};
+const H_THRESHOLD = ADJ_CONFIG.horizontalThreshold || 100;  // max horizontal gap for left/right adjacency
+const V_THRESHOLD = ADJ_CONFIG.verticalThreshold || 20;     // max vertical gap for above/below adjacency
+const SAME_ROW_TOL = ADJ_CONFIG.sameRowTolerance || 0.5;    // % vertical overlap to be "same row"
+const SAME_COL_TOL = ADJ_CONFIG.sameColTolerance || 0.5;    // % horizontal overlap to be "same column"
 
 /* ===== Event logging scaffold ===== */
 function logEvent(type,payload={}){ console.log('[event]', {type, ts:new Date().toISOString(), ...payload}); }
@@ -157,6 +183,14 @@ let selPolys=[];               // [{page,points:[{x,y},...] }]
 let drawing=false, liveRect=null, addMode=false;
 let polyDrawing=false, livePoly=null, lastMouse=null; // polygon temp state
 const tags=[], labels=[];
+
+/* ===== Adjacency Rules State ===== */
+// Rule: {sourceLabel, direction, targetLabel, outputName}
+// direction: 'left' | 'right' | 'above' | 'below' | 'nearest'
+// targetLabel: specific label or '*' for any
+const adjRules = [];
+let hoveredElem = null;        // Element being hovered for relationship highlighting
+let relatedElems = [];         // Elements related to hovered element
 
 /* Simple spatial grid per page to speed selection */
 const grids=new Map(); // key `${fileIndex}:${page}` -> {cellSize, map: Map(key -> array of element refs)}
@@ -202,6 +236,157 @@ function loadLabelState(){
 }
 loadLabelState();
 
+/* ===== Adjacency Calculation Functions ===== */
+
+// Calculate vertical overlap ratio between two elements
+function verticalOverlap(a, b) {
+  const aH = a.y2 - a.y1, bH = b.y2 - b.y1;
+  const overlapTop = Math.max(a.y1, b.y1);
+  const overlapBottom = Math.min(a.y2, b.y2);
+  const overlap = Math.max(0, overlapBottom - overlapTop);
+  return overlap / Math.min(aH, bH);
+}
+
+// Calculate horizontal overlap ratio between two elements
+function horizontalOverlap(a, b) {
+  const aW = a.x2 - a.x1, bW = b.x2 - b.x1;
+  const overlapLeft = Math.max(a.x1, b.x1);
+  const overlapRight = Math.min(a.x2, b.x2);
+  const overlap = Math.max(0, overlapRight - overlapLeft);
+  return overlap / Math.min(aW, bW);
+}
+
+// Get center point of an element
+function center(el) {
+  return { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 };
+}
+
+// Calculate distance between two elements (center to center)
+function distance(a, b) {
+  const ca = center(a), cb = center(b);
+  return Math.sqrt((ca.x - cb.x) ** 2 + (ca.y - cb.y) ** 2);
+}
+
+// Check if element b is to the right of element a
+function isRight(a, b, maxGap = H_THRESHOLD) {
+  if (a.page !== b.page) return false;
+  const gap = b.x1 - a.x2;
+  return gap > 0 && gap <= maxGap && verticalOverlap(a, b) >= SAME_ROW_TOL;
+}
+
+// Check if element b is to the left of element a
+function isLeft(a, b, maxGap = H_THRESHOLD) {
+  if (a.page !== b.page) return false;
+  const gap = a.x1 - b.x2;
+  return gap > 0 && gap <= maxGap && verticalOverlap(a, b) >= SAME_ROW_TOL;
+}
+
+// Check if element b is above element a
+function isAbove(a, b, maxGap = V_THRESHOLD) {
+  if (a.page !== b.page) return false;
+  const gap = a.y1 - b.y2;
+  return gap > 0 && gap <= maxGap && horizontalOverlap(a, b) >= SAME_COL_TOL;
+}
+
+// Check if element b is below element a
+function isBelow(a, b, maxGap = V_THRESHOLD) {
+  if (a.page !== b.page) return false;
+  const gap = b.y1 - a.y2;
+  return gap > 0 && gap <= maxGap && horizontalOverlap(a, b) >= SAME_COL_TOL;
+}
+
+// Find adjacent elements based on direction
+function findAdjacent(elem, direction, candidates, targetLabel = '*') {
+  if (!candidates || !candidates.length) return [];
+
+  // Filter by target label if specified
+  let filtered = candidates.filter(c => c !== elem && c.page === elem.page);
+  if (targetLabel !== '*') {
+    filtered = filtered.filter(c => labelNames(c).includes(targetLabel));
+  }
+
+  let results = [];
+  switch (direction) {
+    case 'right':
+      results = filtered.filter(c => isRight(elem, c)).sort((a, b) => a.x1 - b.x1);
+      break;
+    case 'left':
+      results = filtered.filter(c => isLeft(elem, c)).sort((a, b) => b.x2 - a.x2);
+      break;
+    case 'above':
+      results = filtered.filter(c => isAbove(elem, c)).sort((a, b) => b.y2 - a.y2);
+      break;
+    case 'below':
+      results = filtered.filter(c => isBelow(elem, c)).sort((a, b) => a.y1 - b.y1);
+      break;
+    case 'nearest':
+      results = filtered.sort((a, b) => distance(elem, a) - distance(elem, b));
+      break;
+  }
+  return results;
+}
+
+// Get the first adjacent element in a direction
+function getAdjacent(elem, direction, candidates, targetLabel = '*') {
+  const adj = findAdjacent(elem, direction, candidates, targetLabel);
+  return adj.length > 0 ? adj[0] : null;
+}
+
+// Compute all relationships for an element based on loaded rules
+function computeRelationships(elem, allElems) {
+  const rels = [];
+  const elemLabels = labelNames(elem);
+
+  for (const rule of adjRules) {
+    // Check if this element matches the source label
+    if (rule.sourceLabel !== '*' && !elemLabels.includes(rule.sourceLabel)) continue;
+
+    // Find the adjacent element
+    const adjacent = getAdjacent(elem, rule.direction, allElems, rule.targetLabel);
+    if (adjacent) {
+      rels.push({
+        rule: rule,
+        direction: rule.direction,
+        outputName: rule.outputName,
+        relatedElem: adjacent,
+        relatedText: adjacent.text
+      });
+    }
+  }
+  return rels;
+}
+
+// Get formatted relationship strings for display
+function getRelationshipStrings(elem, allElems) {
+  const rels = computeRelationships(elem, allElems);
+  return rels.map(r => `${r.outputName}: "${r.relatedText}"`);
+}
+
+// Get all related elements for highlighting
+function getAllRelatedElems(elem, allElems) {
+  const rels = computeRelationships(elem, allElems);
+  return rels.map(r => r.relatedElem);
+}
+
+/* ===== Adjacency Rules Persistence ===== */
+const ADJ_STORAGE_KEY = 'pdfToolAdjRules';
+
+function saveAdjRules() {
+  try {
+    localStorage.setItem(ADJ_STORAGE_KEY, JSON.stringify(adjRules));
+  } catch {}
+}
+
+function loadAdjRulesState() {
+  try {
+    const s = localStorage.getItem(ADJ_STORAGE_KEY);
+    if (!s) return;
+    const arr = JSON.parse(s);
+    adjRules.splice(0, adjRules.length, ...arr);
+  } catch {}
+}
+loadAdjRulesState();
+
 /* ===== Upload / DnD ===== */
 const fileInput=document.getElementById('fileInput');
 document.getElementById('btnUploadLink').onclick=()=>fileInput.click();
@@ -222,6 +407,9 @@ document.getElementById('tagsFile').onchange=e=>{ loadTagOrLabel(e.target.files[
 document.getElementById('loadLabelsLink').onclick=()=>document.getElementById('labelsFile').click();
 document.getElementById('labelsFile').onchange=e=>{ loadLabelCSV(e.target.files[0]); };
 document.getElementById('dlLabelTplLink').onclick=()=>{ logEvent('download_label_template'); downloadLabelTemplateCSV(); };
+document.getElementById('loadAdjLink').onclick=()=>document.getElementById('adjFile').click();
+document.getElementById('adjFile').onchange=e=>{ loadAdjacencyCSV(e.target.files[0]); };
+document.getElementById('dlAdjTplLink').onclick=()=>{ logEvent('download_adj_template'); downloadAdjTemplateCSV(); };
 
 /* ===== Top bar zoom + nav ===== */
 document.getElementById('fit').onclick=()=>{ logEvent('zoom_fit'); fitWidth(); syncZoomUI(); };
@@ -362,6 +550,8 @@ async function render(){
   await pg.render({canvasContext:ctxPdf,viewport:vp}).promise;
   fileNameEl.textContent = f.name || '(unnamed)';
   pageInfoEl.textContent = `File ${iFile+1}/${files.length} — Page ${page}/${f.totalPages}`;
+  // Clear hover state on page change
+  hoveredElem = null; relatedElems = [];
   drawHi(); drawSel(); syncZoomUI(); refreshThumbs();
 }
 function syncZoomUI(){ zoomSlider.value=String(scale.toFixed(2)); }
@@ -391,15 +581,29 @@ function rowsVisible(){ return (selRects.length||selPolys.length)? rowsFiltered(
 /* Build table */
 function refill(keepScroll=false){
   const rows=rowsVisible(); const oldTop = keepScroll ? document.getElementById('rightCol').scrollTop : 0;
+  const allElems = iFile >= 0 ? files[iFile].elements : [];
   tbody.innerHTML='';
-  rows.forEach(v=>{
+  rows.forEach((v, idx) => {
     const tr=document.createElement('tr');
+    const rels = getRelationshipStrings(v, allElems);
     tr.innerHTML = `<td><input type="checkbox"${v.keep?' checked':''}></td>
       <td>${v.file+1}</td><td>${v.page}</td><td>${esc(v.text)}</td>
       <td>${labelNames(v).join('; ')}</td>
+      <td class="rels">${esc(rels.join('; '))}</td>
       <td>${n(v.x1)}</td><td>${n(v.y1)}</td><td>${n(v.x2)}</td><td>${n(v.y2)}</td>`;
     tr.querySelector('input').onchange=e=>{v.keep=e.target.checked; drawHi();}
     tr.addEventListener('click',e=>{ if(e.target.tagName!=='INPUT'){ v.keep=!v.keep; tr.querySelector('input').checked=v.keep; drawHi(); }});
+    // Hover to highlight related elements
+    tr.addEventListener('mouseenter', () => {
+      hoveredElem = v;
+      relatedElems = getAllRelatedElems(v, allElems);
+      drawRelations();
+    });
+    tr.addEventListener('mouseleave', () => {
+      hoveredElem = null;
+      relatedElems = [];
+      drawRelations();
+    });
     tbody.appendChild(tr);
   });
   if(keepScroll) document.getElementById('rightCol').scrollTop = oldTop;
@@ -427,6 +631,44 @@ function drawHi(){
     if(v.page!==page || !v.keep) return;
     const x=v.x1*scale,y=v.y1*scale,w=(v.x2-v.x1)*scale,h=(v.y2-v.y1)*scale;
     ctxHi.fillStyle=HIGHLIGHT_COLOR; ctxHi.fillRect(x,y,w,h);
+  });
+  // Draw relationship highlights on top
+  drawRelations();
+}
+
+function drawRelations(){
+  // Draw the hovered element and its related elements
+  if(!hoveredElem || hoveredElem.page !== page) return;
+
+  // Highlight hovered element with a border
+  const hx = hoveredElem.x1*scale, hy = hoveredElem.y1*scale;
+  const hw = (hoveredElem.x2 - hoveredElem.x1)*scale, hh = (hoveredElem.y2 - hoveredElem.y1)*scale;
+  ctxHi.strokeStyle = RELATION_STROKE;
+  ctxHi.lineWidth = 3;
+  ctxHi.strokeRect(hx, hy, hw, hh);
+
+  // Highlight related elements and draw connecting lines
+  relatedElems.forEach(rel => {
+    if(rel.page !== page) return;
+    const rx = rel.x1*scale, ry = rel.y1*scale;
+    const rw = (rel.x2 - rel.x1)*scale, rh = (rel.y2 - rel.y1)*scale;
+
+    // Fill related element
+    ctxHi.fillStyle = RELATION_FILL;
+    ctxHi.fillRect(rx, ry, rw, rh);
+    ctxHi.strokeStyle = RELATION_STROKE;
+    ctxHi.lineWidth = 2;
+    ctxHi.strokeRect(rx, ry, rw, rh);
+
+    // Draw connecting line from hovered to related
+    const hCenter = { x: hx + hw/2, y: hy + hh/2 };
+    const rCenter = { x: rx + rw/2, y: ry + rh/2 };
+    ctxHi.beginPath();
+    ctxHi.setLineDash([5, 5]);
+    ctxHi.moveTo(hCenter.x, hCenter.y);
+    ctxHi.lineTo(rCenter.x, rCenter.y);
+    ctxHi.stroke();
+    ctxHi.setLineDash([]);
   });
 }
 function drawSel(){
@@ -481,10 +723,12 @@ async function fitHeight(){
 /* IO */
 function exportCSV(rows){
   if(!rows.length) return;
-  let csv='selected,file_index,page,text,labels,x1,y1,x2,y2,md5\n';
+  const allElems = iFile >= 0 ? files[iFile].elements : allRows();
+  let csv='selected,file_index,page,text,labels,relationships,x1,y1,x2,y2,md5\n';
   rows.forEach(v=>{
     const labs=labelNames(v).join('; ');
-    csv+=[v.keep, v.file+1, v.page, JSON.stringify(v.text), JSON.stringify(labs), v.x1,v.y1,v.x2,v.y2, v.md5].join(',')+'\n';
+    const rels=getRelationshipStrings(v, allElems).join('; ');
+    csv+=[v.keep, v.file+1, v.page, JSON.stringify(v.text), JSON.stringify(labs), JSON.stringify(rels), v.x1,v.y1,v.x2,v.y2, v.md5].join(',')+'\n';
   });
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download='extracted.csv'; a.click();
@@ -540,6 +784,51 @@ function splitCSVLine(line){
 function downloadLabelTemplateCSV(){
   const t = "regex,label\n^(INV|Invoice)\\s*#?\\d+,InvoiceNumber\n^PO[- ]?\\d+,PurchaseOrder\n\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b,Email\n";
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'})); a.download='label_formats_template.csv'; a.click();
+}
+
+/* Adjacency Rules CSV: headers source_label,direction,target_label,output_name */
+function loadAdjacencyCSV(file){
+  if(!file) return; const r=new FileReader();
+  r.onload=()=>{
+    const lines = r.result.split(/\r?\n/).filter(Boolean);
+    if(!lines.length) return;
+    const hdr = lines[0].split(',').map(s=>s.trim().toLowerCase());
+    const iSrc = hdr.indexOf('source_label');
+    const iDir = hdr.indexOf('direction');
+    const iTgt = hdr.indexOf('target_label');
+    const iOut = hdr.indexOf('output_name');
+    if(iSrc===-1 || iDir===-1 || iTgt===-1 || iOut===-1) {
+      alert('Adjacency CSV must have headers: source_label,direction,target_label,output_name');
+      return;
+    }
+    adjRules.length = 0;
+    for(let k=1;k<lines.length;k++){
+      const parts = splitCSVLine(lines[k]);
+      const sourceLabel = (parts[iSrc]||'').trim();
+      const direction = (parts[iDir]||'').trim().toLowerCase();
+      const targetLabel = (parts[iTgt]||'').trim();
+      const outputName = (parts[iOut]||'').trim();
+      if(!sourceLabel || !direction || !outputName) continue;
+      if(!['left','right','above','below','nearest'].includes(direction)) continue;
+      adjRules.push({ sourceLabel, direction, targetLabel: targetLabel || '*', outputName });
+    }
+    saveAdjRules(); refill(); logEvent('load_adj_rules',{count:adjRules.length});
+  };
+  r.readAsText(file);
+}
+
+function downloadAdjTemplateCSV(){
+  const t = `source_label,direction,target_label,output_name
+Total,right,*,total_value
+Invoice,right,*,invoice_number
+Date,right,*,date_value
+Amount,right,*,amount_value
+Name,below,*,name_value
+`;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'}));
+  a.download='adjacency_rules_template.csv';
+  a.click();
 }
 
 /* Splitters & collapse */
