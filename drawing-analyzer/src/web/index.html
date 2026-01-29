@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drawing Analyzer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        :root {
+            --kernel-color: rgba(59, 130, 246, 0.3);
+            --kernel-border: rgba(59, 130, 246, 0.8);
+            --kernel-active: rgba(34, 197, 94, 0.5);
+        }
+
+        .container {
+            max-width: 1400px;
+            padding: 1rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .drawing-panel {
+            position: relative;
+            background: var(--pico-card-background-color);
+            border-radius: var(--pico-border-radius);
+            padding: 1rem;
+            min-height: 500px;
+        }
+
+        .drawing-container {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .drawing-image {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .kernel-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .kernel-box {
+            position: absolute;
+            border: 2px solid var(--kernel-border);
+            background: var(--kernel-color);
+            transition: all 0.3s ease;
+        }
+
+        .kernel-box.active {
+            background: var(--kernel-active);
+            border-color: rgb(34, 197, 94);
+        }
+
+        .kernel-box.completed {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: rgba(34, 197, 94, 0.5);
+        }
+
+        .results-panel {
+            background: var(--pico-card-background-color);
+            border-radius: var(--pico-border-radius);
+            padding: 1rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--pico-muted-border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: var(--pico-border-radius) var(--pico-border-radius) 0 0;
+        }
+
+        .tab-btn.active {
+            background: var(--pico-primary-background);
+            color: var(--pico-primary-inverse);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: var(--pico-muted-border-color);
+            border-radius: var(--pico-border-radius);
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--pico-primary-background);
+            transition: width 0.3s ease;
+        }
+
+        .quantity-table {
+            width: 100%;
+            font-size: 0.9rem;
+        }
+
+        .quantity-table th,
+        .quantity-table td {
+            padding: 0.5rem;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.8rem;
+        }
+
+        .confidence-high {
+            background: rgba(34, 197, 94, 0.2);
+            color: rgb(34, 197, 94);
+        }
+
+        .confidence-medium {
+            background: rgba(234, 179, 8, 0.2);
+            color: rgb(234, 179, 8);
+        }
+
+        .confidence-low {
+            background: rgba(239, 68, 68, 0.2);
+            color: rgb(239, 68, 68);
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--pico-muted-border-color);
+            border-radius: var(--pico-border-radius);
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--pico-primary);
+            background: var(--pico-primary-focus);
+        }
+
+        .upload-zone input {
+            display: none;
+        }
+
+        .classification-card {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-card {
+            background: var(--pico-card-sectioning-background-color);
+            padding: 1rem;
+            border-radius: var(--pico-border-radius);
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--pico-primary);
+        }
+
+        .stat-card .label {
+            font-size: 0.8rem;
+            color: var(--pico-muted-color);
+        }
+
+        .log-output {
+            font-family: monospace;
+            font-size: 0.8rem;
+            background: var(--pico-code-background-color);
+            padding: 1rem;
+            border-radius: var(--pico-border-radius);
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin: 0.25rem 0;
+        }
+
+        .log-entry.info { color: var(--pico-color); }
+        .log-entry.success { color: rgb(34, 197, 94); }
+        .log-entry.error { color: rgb(239, 68, 68); }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>Drawing Analyzer</h1>
+            <p>AI-powered technical drawing analysis with convolutional window visualization</p>
+        </header>
+
+        <!-- Upload Section -->
+        <section id="upload-section">
+            <div class="upload-zone" id="upload-zone">
+                <input type="file" id="file-input" accept=".pdf">
+                <h3>Drop PDF here or click to upload</h3>
+                <p>Supports technical/construction drawings</p>
+            </div>
+
+            <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                <label>
+                    API Provider
+                    <select id="provider-select">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                    </select>
+                </label>
+                <label>
+                    API Key
+                    <input type="password" id="api-key-input" placeholder="sk-... or leave blank for env var">
+                </label>
+                <label>
+                    Page (optional)
+                    <input type="number" id="page-input" placeholder="All pages" min="1">
+                </label>
+            </div>
+
+            <button id="analyze-btn" style="margin-top: 1rem; width: 100%;" disabled>
+                Analyze Drawing
+            </button>
+        </section>
+
+        <!-- Analysis Section (hidden until file uploaded) -->
+        <section id="analysis-section" style="display: none;">
+            <div class="main-grid">
+                <!-- Left: Drawing with kernel overlay -->
+                <div class="drawing-panel">
+                    <h3>Drawing Preview</h3>
+                    <div class="drawing-container" id="drawing-container">
+                        <img id="drawing-image" class="drawing-image" alt="Drawing preview">
+                        <div class="kernel-overlay" id="kernel-overlay"></div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p id="progress-text">Ready to analyze</p>
+                </div>
+
+                <!-- Right: Results -->
+                <div class="results-panel">
+                    <div class="classification-card" id="classification-card" style="display: none;">
+                        <div class="stat-card">
+                            <div class="value" id="drawing-type">-</div>
+                            <div class="label">Drawing Type</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="discipline">-</div>
+                            <div class="label">Discipline</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="value" id="confidence">-</div>
+                            <div class="label">Confidence</div>
+                        </div>
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="quantities">Quantities</button>
+                        <button class="tab-btn" data-tab="measurements">Measurements</button>
+                        <button class="tab-btn" data-tab="notes">Notes</button>
+                        <button class="tab-btn" data-tab="log">Log</button>
+                    </div>
+
+                    <div class="tab-content active" id="tab-quantities">
+                        <table class="quantity-table">
+                            <thead>
+                                <tr>
+                                    <th>Description</th>
+                                    <th>Qty</th>
+                                    <th>Unit</th>
+                                    <th>Category</th>
+                                    <th>Conf.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quantities-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="tab-content" id="tab-measurements">
+                        <table class="quantity-table">
+                            <thead>
+                                <tr>
+                                    <th>Value</th>
+                                    <th>Unit</th>
+                                    <th>Label</th>
+                                    <th>Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody id="measurements-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="tab-content" id="tab-notes">
+                        <div id="notes-list"></div>
+                    </div>
+
+                    <div class="tab-content" id="tab-log">
+                        <div class="log-output" id="log-output"></div>
+                    </div>
+
+                    <div style="margin-top: 1rem;">
+                        <button id="export-json-btn" disabled>Export JSON</button>
+                        <button id="export-csv-btn" disabled>Export CSV</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // State
+        let currentFile = null;
+        let analysisId = null;
+        let analysisResult = null;
+        let kernelBoxes = [];
+
+        // DOM elements
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const uploadSection = document.getElementById('upload-section');
+        const analysisSection = document.getElementById('analysis-section');
+        const drawingImage = document.getElementById('drawing-image');
+        const kernelOverlay = document.getElementById('kernel-overlay');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+
+        // File upload handling
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'application/pdf') {
+                handleFile(files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            currentFile = file;
+            analyzeBtn.disabled = false;
+            uploadZone.innerHTML = `<h3>${file.name}</h3><p>Ready to analyze</p>`;
+
+            // Create preview using PDF.js or show placeholder
+            analysisSection.style.display = 'block';
+            drawingImage.src = 'data:image/svg+xml,' + encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">' +
+                '<rect fill="#f0f0f0" width="800" height="600"/>' +
+                '<text x="400" y="300" text-anchor="middle" fill="#666">PDF Preview (upload to see)</text>' +
+                '</svg>'
+            );
+        }
+
+        // Tab handling
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Analyze button
+        analyzeBtn.addEventListener('click', startAnalysis);
+
+        async function startAnalysis() {
+            if (!currentFile) return;
+
+            analyzeBtn.disabled = true;
+            progressText.textContent = 'Starting analysis...';
+            progressFill.style.width = '5%';
+            clearResults();
+
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            formData.append('provider', document.getElementById('provider-select').value);
+
+            const apiKey = document.getElementById('api-key-input').value;
+            if (apiKey) formData.append('api_key', apiKey);
+
+            const page = document.getElementById('page-input').value;
+            if (page) formData.append('page', page);
+
+            try {
+                // Start analysis
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                analysisId = data.analysis_id;
+                log('Analysis started: ' + analysisId, 'info');
+
+                // Poll for results
+                pollAnalysis();
+
+            } catch (error) {
+                log('Error: ' + error.message, 'error');
+                progressText.textContent = 'Error: ' + error.message;
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        async function pollAnalysis() {
+            if (!analysisId) return;
+
+            try {
+                const response = await fetch(`/api/analysis/${analysisId}`);
+                const data = await response.json();
+
+                if (data.status === 'in_progress') {
+                    // Update progress
+                    const progress = data.progress || [];
+                    progressFill.style.width = Math.min(10 + progress.length * 5, 90) + '%';
+                    progressText.textContent = `Analyzing... (${progress.length} events)`;
+
+                    // Show kernel boxes for progress
+                    progress.forEach((event, idx) => {
+                        if (event.type === 'kernel_analyzed') {
+                            addKernelBox(event.kernel, idx === progress.length - 1);
+                        }
+                        log(`${event.type}: ${JSON.stringify(event)}`, 'info');
+                    });
+
+                    // Continue polling
+                    setTimeout(pollAnalysis, 1000);
+
+                } else if (data.status === 'completed') {
+                    progressFill.style.width = '100%';
+                    progressText.textContent = 'Analysis complete!';
+                    analysisResult = data;
+                    displayResults(data);
+                    log('Analysis completed successfully', 'success');
+                    analyzeBtn.disabled = false;
+
+                } else if (data.status === 'error') {
+                    throw new Error(data.error);
+                }
+
+            } catch (error) {
+                log('Polling error: ' + error.message, 'error');
+                progressText.textContent = 'Error: ' + error.message;
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            // Classification
+            if (data.classification) {
+                document.getElementById('classification-card').style.display = 'grid';
+                document.getElementById('drawing-type').textContent = data.classification.drawing_type || '-';
+                document.getElementById('discipline').textContent = data.classification.discipline || '-';
+                document.getElementById('confidence').textContent =
+                    data.classification.confidence ? (data.classification.confidence * 100).toFixed(0) + '%' : '-';
+            }
+
+            // Quantities
+            const quantitiesTbody = document.getElementById('quantities-tbody');
+            quantitiesTbody.innerHTML = '';
+            (data.quantities || []).forEach(q => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(q.description || '')}</td>
+                    <td>${q.quantity || 0}</td>
+                    <td>${q.unit || ''}</td>
+                    <td>${q.category?.level1 || ''}</td>
+                    <td>${getConfidenceBadge(q.confidence)}</td>
+                `;
+                quantitiesTbody.appendChild(tr);
+            });
+
+            // Measurements
+            const measurementsTbody = document.getElementById('measurements-tbody');
+            measurementsTbody.innerHTML = '';
+            (data.measurements || []).forEach(m => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${m.value || 0}</td>
+                    <td>${m.unit || ''}</td>
+                    <td>${escapeHtml(m.label || '')}</td>
+                    <td>${getConfidenceBadge(m.confidence)}</td>
+                `;
+                measurementsTbody.appendChild(tr);
+            });
+
+            // Notes
+            const notesList = document.getElementById('notes-list');
+            notesList.innerHTML = '';
+            (data.notes || []).forEach(n => {
+                const div = document.createElement('div');
+                div.style.marginBottom = '0.5rem';
+                div.innerHTML = `<strong>${n.note_type || 'note'}:</strong> ${escapeHtml(n.content || '')}`;
+                notesList.appendChild(div);
+            });
+
+            // Enable export
+            document.getElementById('export-json-btn').disabled = false;
+            document.getElementById('export-csv-btn').disabled = false;
+        }
+
+        function addKernelBox(kernel, isActive) {
+            if (!kernel || !kernel.bbox) return;
+
+            const box = document.createElement('div');
+            box.className = 'kernel-box' + (isActive ? ' active' : ' completed');
+            box.style.left = (kernel.bbox.x1 * 100) + '%';
+            box.style.top = (kernel.bbox.y1 * 100) + '%';
+            box.style.width = ((kernel.bbox.x2 - kernel.bbox.x1) * 100) + '%';
+            box.style.height = ((kernel.bbox.y2 - kernel.bbox.y1) * 100) + '%';
+
+            kernelOverlay.appendChild(box);
+            kernelBoxes.push(box);
+
+            // Animate previous active boxes to completed
+            if (isActive) {
+                kernelBoxes.slice(0, -1).forEach(b => {
+                    b.classList.remove('active');
+                    b.classList.add('completed');
+                });
+            }
+        }
+
+        function clearResults() {
+            kernelOverlay.innerHTML = '';
+            kernelBoxes = [];
+            document.getElementById('quantities-tbody').innerHTML = '';
+            document.getElementById('measurements-tbody').innerHTML = '';
+            document.getElementById('notes-list').innerHTML = '';
+            document.getElementById('log-output').innerHTML = '';
+            document.getElementById('classification-card').style.display = 'none';
+            document.getElementById('export-json-btn').disabled = true;
+            document.getElementById('export-csv-btn').disabled = true;
+        }
+
+        function log(message, type = 'info') {
+            const logOutput = document.getElementById('log-output');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logOutput.appendChild(entry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function getConfidenceBadge(confidence) {
+            const val = confidence || 0;
+            let cls = 'confidence-low';
+            if (val >= 0.8) cls = 'confidence-high';
+            else if (val >= 0.5) cls = 'confidence-medium';
+            return `<span class="confidence-badge ${cls}">${(val * 100).toFixed(0)}%</span>`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Export handlers
+        document.getElementById('export-json-btn').addEventListener('click', () => {
+            if (!analysisResult) return;
+            const blob = new Blob([JSON.stringify(analysisResult, null, 2)], { type: 'application/json' });
+            downloadBlob(blob, 'analysis-result.json');
+        });
+
+        document.getElementById('export-csv-btn').addEventListener('click', () => {
+            if (!analysisResult || !analysisResult.quantities) return;
+            const headers = ['Description', 'Quantity', 'Unit', 'Category', 'Confidence'];
+            const rows = analysisResult.quantities.map(q => [
+                q.description || '',
+                q.quantity || 0,
+                q.unit || '',
+                q.category?.level1 || '',
+                q.confidence || 0
+            ]);
+            const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            downloadBlob(blob, 'quantities.csv');
+        });
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
