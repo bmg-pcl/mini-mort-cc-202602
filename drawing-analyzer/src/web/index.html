@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Drawing Analyzer</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
     <style>
         :root {
             --kernel-color: rgba(59, 130, 246, 0.3);
@@ -45,9 +46,11 @@
             position: relative;
             width: 100%;
             overflow: hidden;
+            background: #f5f5f5;
+            min-height: 400px;
         }
 
-        .drawing-image {
+        .pdf-canvas {
             width: 100%;
             height: auto;
             display: block;
@@ -72,11 +75,34 @@
         .kernel-box.active {
             background: var(--kernel-active);
             border-color: rgb(34, 197, 94);
+            animation: pulse 1s infinite;
         }
 
         .kernel-box.completed {
             background: rgba(34, 197, 94, 0.2);
             border-color: rgba(34, 197, 94, 0.5);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .page-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin: 0.5rem 0;
+        }
+
+        .page-nav button {
+            padding: 0.25rem 0.75rem;
+            margin: 0;
+        }
+
+        .page-nav span {
+            font-size: 0.9rem;
         }
 
         .results-panel {
@@ -91,6 +117,7 @@
             margin-bottom: 1rem;
             border-bottom: 1px solid var(--pico-muted-border-color);
             padding-bottom: 0.5rem;
+            flex-wrap: wrap;
         }
 
         .tab-btn {
@@ -108,6 +135,8 @@
 
         .tab-content {
             display: none;
+            max-height: 400px;
+            overflow-y: auto;
         }
 
         .tab-content.active {
@@ -137,6 +166,15 @@
         .quantity-table th,
         .quantity-table td {
             padding: 0.5rem;
+        }
+
+        .quantity-table tr:hover {
+            background: var(--pico-card-sectioning-background-color);
+            cursor: pointer;
+        }
+
+        .quantity-table tr.highlighted {
+            background: rgba(59, 130, 246, 0.1);
         }
 
         .confidence-badge {
@@ -222,6 +260,59 @@
         .log-entry.info { color: var(--pico-color); }
         .log-entry.success { color: rgb(34, 197, 94); }
         .log-entry.error { color: rgb(239, 68, 68); }
+
+        .compare-section {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: var(--pico-card-sectioning-background-color);
+            border-radius: var(--pico-border-radius);
+        }
+
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .diff-added { background: rgba(34, 197, 94, 0.2); }
+        .diff-removed { background: rgba(239, 68, 68, 0.2); }
+        .diff-changed { background: rgba(234, 179, 8, 0.2); }
+
+        .export-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .export-buttons button {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--pico-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .highlight-box {
+            position: absolute;
+            border: 3px solid #ff6b6b;
+            background: rgba(255, 107, 107, 0.2);
+            pointer-events: none;
+            transition: all 0.2s ease;
+        }
     </style>
 </head>
 <body>
@@ -239,7 +330,7 @@
                 <p>Supports technical/construction drawings</p>
             </div>
 
-            <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+            <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
                 <label>
                     API Provider
                     <select id="provider-select">
@@ -255,6 +346,10 @@
                     Page (optional)
                     <input type="number" id="page-input" placeholder="All pages" min="1">
                 </label>
+                <label>
+                    <input type="checkbox" id="use-cache" checked>
+                    Use cache
+                </label>
             </div>
 
             <button id="analyze-btn" style="margin-top: 1rem; width: 100%;" disabled>
@@ -269,8 +364,14 @@
                 <div class="drawing-panel">
                     <h3>Drawing Preview</h3>
                     <div class="drawing-container" id="drawing-container">
-                        <img id="drawing-image" class="drawing-image" alt="Drawing preview">
+                        <canvas id="pdf-canvas" class="pdf-canvas"></canvas>
                         <div class="kernel-overlay" id="kernel-overlay"></div>
+                        <div class="highlight-box" id="highlight-box" style="display: none;"></div>
+                    </div>
+                    <div class="page-nav" id="page-nav" style="display: none;">
+                        <button id="prev-page">&lt; Prev</button>
+                        <span id="page-info">Page 1 of 1</span>
+                        <button id="next-page">Next &gt;</button>
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
@@ -299,6 +400,7 @@
                         <button class="tab-btn active" data-tab="quantities">Quantities</button>
                         <button class="tab-btn" data-tab="measurements">Measurements</button>
                         <button class="tab-btn" data-tab="notes">Notes</button>
+                        <button class="tab-btn" data-tab="compare">Compare</button>
                         <button class="tab-btn" data-tab="log">Log</button>
                     </div>
 
@@ -335,25 +437,43 @@
                         <div id="notes-list"></div>
                     </div>
 
+                    <div class="tab-content" id="tab-compare">
+                        <div class="compare-section">
+                            <h4>Compare with Previous Analysis</h4>
+                            <input type="file" id="compare-file" accept=".json" style="margin-bottom: 1rem;">
+                            <div id="compare-results"></div>
+                        </div>
+                    </div>
+
                     <div class="tab-content" id="tab-log">
                         <div class="log-output" id="log-output"></div>
                     </div>
 
-                    <div style="margin-top: 1rem;">
+                    <div class="export-buttons">
                         <button id="export-json-btn" disabled>Export JSON</button>
                         <button id="export-csv-btn" disabled>Export CSV</button>
+                        <button id="export-excel-btn" disabled>Export Excel</button>
                     </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <script>
+    <script type="module">
+        // Import PDF.js
+        const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+
         // State
         let currentFile = null;
+        let pdfDoc = null;
+        let currentPage = 1;
+        let totalPages = 1;
         let analysisId = null;
         let analysisResult = null;
         let kernelBoxes = [];
+        let canvasWidth = 0;
+        let canvasHeight = 0;
 
         // DOM elements
         const uploadZone = document.getElementById('upload-zone');
@@ -361,10 +481,11 @@
         const analyzeBtn = document.getElementById('analyze-btn');
         const uploadSection = document.getElementById('upload-section');
         const analysisSection = document.getElementById('analysis-section');
-        const drawingImage = document.getElementById('drawing-image');
+        const pdfCanvas = document.getElementById('pdf-canvas');
         const kernelOverlay = document.getElementById('kernel-overlay');
         const progressFill = document.getElementById('progress-fill');
         const progressText = document.getElementById('progress-text');
+        const highlightBox = document.getElementById('highlight-box');
 
         // File upload handling
         uploadZone.addEventListener('click', () => fileInput.click());
@@ -389,20 +510,77 @@
             }
         });
 
-        function handleFile(file) {
+        async function handleFile(file) {
             currentFile = file;
             analyzeBtn.disabled = false;
             uploadZone.innerHTML = `<h3>${file.name}</h3><p>Ready to analyze</p>`;
 
-            // Create preview using PDF.js or show placeholder
             analysisSection.style.display = 'block';
-            drawingImage.src = 'data:image/svg+xml,' + encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">' +
-                '<rect fill="#f0f0f0" width="800" height="600"/>' +
-                '<text x="400" y="300" text-anchor="middle" fill="#666">PDF Preview (upload to see)</text>' +
-                '</svg>'
-            );
+
+            // Load PDF with PDF.js
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                totalPages = pdfDoc.numPages;
+                currentPage = 1;
+
+                // Update page navigation
+                if (totalPages > 1) {
+                    document.getElementById('page-nav').style.display = 'flex';
+                    updatePageInfo();
+                }
+
+                // Render first page
+                await renderPage(currentPage);
+                log(`PDF loaded: ${file.name} (${totalPages} pages)`, 'success');
+
+            } catch (error) {
+                log(`Error loading PDF: ${error.message}`, 'error');
+            }
         }
+
+        async function renderPage(pageNum) {
+            if (!pdfDoc) return;
+
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.5 });
+
+            const canvas = pdfCanvas;
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            canvasWidth = viewport.width;
+            canvasHeight = viewport.height;
+
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+
+            // Clear kernel overlay when changing pages
+            kernelOverlay.innerHTML = '';
+            kernelBoxes = [];
+        }
+
+        function updatePageInfo() {
+            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+        }
+
+        document.getElementById('prev-page').addEventListener('click', async () => {
+            if (currentPage > 1) {
+                currentPage--;
+                await renderPage(currentPage);
+                updatePageInfo();
+            }
+        });
+
+        document.getElementById('next-page').addEventListener('click', async () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                await renderPage(currentPage);
+                updatePageInfo();
+            }
+        });
 
         // Tab handling
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -421,6 +599,7 @@
             if (!currentFile) return;
 
             analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '<span class="loading-spinner"></span>Analyzing...';
             progressText.textContent = 'Starting analysis...';
             progressFill.style.width = '5%';
             clearResults();
@@ -428,6 +607,7 @@
             const formData = new FormData();
             formData.append('file', currentFile);
             formData.append('provider', document.getElementById('provider-select').value);
+            formData.append('use_cache', document.getElementById('use-cache').checked);
 
             const apiKey = document.getElementById('api-key-input').value;
             if (apiKey) formData.append('api_key', apiKey);
@@ -436,7 +616,6 @@
             if (page) formData.append('page', page);
 
             try {
-                // Start analysis
                 const response = await fetch('/api/analyze', {
                     method: 'POST',
                     body: formData
@@ -450,14 +629,18 @@
                 analysisId = data.analysis_id;
                 log('Analysis started: ' + analysisId, 'info');
 
-                // Poll for results
                 pollAnalysis();
 
             } catch (error) {
                 log('Error: ' + error.message, 'error');
                 progressText.textContent = 'Error: ' + error.message;
-                analyzeBtn.disabled = false;
+                resetAnalyzeBtn();
             }
+        }
+
+        function resetAnalyzeBtn() {
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = 'Analyze Drawing';
         }
 
         async function pollAnalysis() {
@@ -468,20 +651,16 @@
                 const data = await response.json();
 
                 if (data.status === 'in_progress') {
-                    // Update progress
                     const progress = data.progress || [];
                     progressFill.style.width = Math.min(10 + progress.length * 5, 90) + '%';
                     progressText.textContent = `Analyzing... (${progress.length} events)`;
 
-                    // Show kernel boxes for progress
                     progress.forEach((event, idx) => {
                         if (event.type === 'kernel_analyzed') {
                             addKernelBox(event.kernel, idx === progress.length - 1);
                         }
-                        log(`${event.type}: ${JSON.stringify(event)}`, 'info');
                     });
 
-                    // Continue polling
                     setTimeout(pollAnalysis, 1000);
 
                 } else if (data.status === 'completed') {
@@ -490,7 +669,7 @@
                     analysisResult = data;
                     displayResults(data);
                     log('Analysis completed successfully', 'success');
-                    analyzeBtn.disabled = false;
+                    resetAnalyzeBtn();
 
                 } else if (data.status === 'error') {
                     throw new Error(data.error);
@@ -499,12 +678,11 @@
             } catch (error) {
                 log('Polling error: ' + error.message, 'error');
                 progressText.textContent = 'Error: ' + error.message;
-                analyzeBtn.disabled = false;
+                resetAnalyzeBtn();
             }
         }
 
         function displayResults(data) {
-            // Classification
             if (data.classification) {
                 document.getElementById('classification-card').style.display = 'grid';
                 document.getElementById('drawing-type').textContent = data.classification.drawing_type || '-';
@@ -513,11 +691,11 @@
                     data.classification.confidence ? (data.classification.confidence * 100).toFixed(0) + '%' : '-';
             }
 
-            // Quantities
             const quantitiesTbody = document.getElementById('quantities-tbody');
             quantitiesTbody.innerHTML = '';
-            (data.quantities || []).forEach(q => {
+            (data.quantities || []).forEach((q, idx) => {
                 const tr = document.createElement('tr');
+                tr.dataset.bbox = JSON.stringify(q.source_bbox);
                 tr.innerHTML = `
                     <td>${escapeHtml(q.description || '')}</td>
                     <td>${q.quantity || 0}</td>
@@ -525,10 +703,12 @@
                     <td>${q.category?.level1 || ''}</td>
                     <td>${getConfidenceBadge(q.confidence)}</td>
                 `;
+                // Hover to highlight on drawing
+                tr.addEventListener('mouseenter', () => highlightOnDrawing(q.source_bbox));
+                tr.addEventListener('mouseleave', () => hideHighlight());
                 quantitiesTbody.appendChild(tr);
             });
 
-            // Measurements
             const measurementsTbody = document.getElementById('measurements-tbody');
             measurementsTbody.innerHTML = '';
             (data.measurements || []).forEach(m => {
@@ -539,22 +719,40 @@
                     <td>${escapeHtml(m.label || '')}</td>
                     <td>${getConfidenceBadge(m.confidence)}</td>
                 `;
+                tr.addEventListener('mouseenter', () => highlightOnDrawing(m.source_bbox));
+                tr.addEventListener('mouseleave', () => hideHighlight());
                 measurementsTbody.appendChild(tr);
             });
 
-            // Notes
             const notesList = document.getElementById('notes-list');
             notesList.innerHTML = '';
             (data.notes || []).forEach(n => {
                 const div = document.createElement('div');
                 div.style.marginBottom = '0.5rem';
+                div.style.padding = '0.5rem';
+                div.style.cursor = 'pointer';
                 div.innerHTML = `<strong>${n.note_type || 'note'}:</strong> ${escapeHtml(n.content || '')}`;
+                div.addEventListener('mouseenter', () => highlightOnDrawing(n.source_bbox));
+                div.addEventListener('mouseleave', () => hideHighlight());
                 notesList.appendChild(div);
             });
 
-            // Enable export
             document.getElementById('export-json-btn').disabled = false;
             document.getElementById('export-csv-btn').disabled = false;
+            document.getElementById('export-excel-btn').disabled = false;
+        }
+
+        function highlightOnDrawing(bbox) {
+            if (!bbox) return;
+            highlightBox.style.display = 'block';
+            highlightBox.style.left = (bbox.x1 * 100) + '%';
+            highlightBox.style.top = (bbox.y1 * 100) + '%';
+            highlightBox.style.width = ((bbox.x2 - bbox.x1) * 100) + '%';
+            highlightBox.style.height = ((bbox.y2 - bbox.y1) * 100) + '%';
+        }
+
+        function hideHighlight() {
+            highlightBox.style.display = 'none';
         }
 
         function addKernelBox(kernel, isActive) {
@@ -570,7 +768,6 @@
             kernelOverlay.appendChild(box);
             kernelBoxes.push(box);
 
-            // Animate previous active boxes to completed
             if (isActive) {
                 kernelBoxes.slice(0, -1).forEach(b => {
                     b.classList.remove('active');
@@ -587,8 +784,10 @@
             document.getElementById('notes-list').innerHTML = '';
             document.getElementById('log-output').innerHTML = '';
             document.getElementById('classification-card').style.display = 'none';
+            document.getElementById('compare-results').innerHTML = '';
             document.getElementById('export-json-btn').disabled = true;
             document.getElementById('export-csv-btn').disabled = true;
+            document.getElementById('export-excel-btn').disabled = true;
         }
 
         function log(message, type = 'info') {
@@ -623,17 +822,34 @@
 
         document.getElementById('export-csv-btn').addEventListener('click', () => {
             if (!analysisResult || !analysisResult.quantities) return;
-            const headers = ['Description', 'Quantity', 'Unit', 'Category', 'Confidence'];
+            const headers = ['Description', 'Quantity', 'Unit', 'Category L1', 'Category L2', 'Category L3', 'Confidence', 'Source Page'];
             const rows = analysisResult.quantities.map(q => [
                 q.description || '',
                 q.quantity || 0,
                 q.unit || '',
                 q.category?.level1 || '',
-                q.confidence || 0
+                q.category?.level2 || '',
+                q.category?.level3 || '',
+                q.confidence || 0,
+                q.source_page || 1
             ]);
             const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
             const blob = new Blob([csv], { type: 'text/csv' });
             downloadBlob(blob, 'quantities.csv');
+        });
+
+        document.getElementById('export-excel-btn').addEventListener('click', async () => {
+            if (!analysisResult) return;
+            try {
+                const response = await fetch(`/api/analysis/${analysisId}/excel`);
+                if (!response.ok) throw new Error('Excel export failed');
+                const blob = await response.blob();
+                downloadBlob(blob, 'analysis-result.xlsx');
+            } catch (error) {
+                log('Excel export error: ' + error.message, 'error');
+                // Fallback to CSV
+                document.getElementById('export-csv-btn').click();
+            }
         });
 
         function downloadBlob(blob, filename) {
@@ -643,6 +859,79 @@
             a.download = filename;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        // Compare feature
+        document.getElementById('compare-file').addEventListener('change', async (e) => {
+            if (!e.target.files.length || !analysisResult) return;
+
+            const file = e.target.files[0];
+            const text = await file.text();
+            const previousResult = JSON.parse(text);
+
+            compareResults(previousResult, analysisResult);
+        });
+
+        function compareResults(prev, current) {
+            const compareDiv = document.getElementById('compare-results');
+            compareDiv.innerHTML = '';
+
+            const prevQuantities = new Map((prev.quantities || []).map(q => [q.description, q]));
+            const currQuantities = new Map((current.quantities || []).map(q => [q.description, q]));
+
+            const added = [];
+            const removed = [];
+            const changed = [];
+
+            // Find added and changed
+            for (const [desc, curr] of currQuantities) {
+                if (!prevQuantities.has(desc)) {
+                    added.push(curr);
+                } else {
+                    const prevQ = prevQuantities.get(desc);
+                    if (prevQ.quantity !== curr.quantity) {
+                        changed.push({ prev: prevQ, curr });
+                    }
+                }
+            }
+
+            // Find removed
+            for (const [desc, prev] of prevQuantities) {
+                if (!currQuantities.has(desc)) {
+                    removed.push(prev);
+                }
+            }
+
+            // Display results
+            let html = '<h5>Comparison Results</h5>';
+
+            if (added.length) {
+                html += `<div class="diff-added" style="padding: 0.5rem; margin: 0.5rem 0; border-radius: 4px;">
+                    <strong>Added (${added.length}):</strong><br>
+                    ${added.map(q => `${q.description}: ${q.quantity} ${q.unit}`).join('<br>')}
+                </div>`;
+            }
+
+            if (removed.length) {
+                html += `<div class="diff-removed" style="padding: 0.5rem; margin: 0.5rem 0; border-radius: 4px;">
+                    <strong>Removed (${removed.length}):</strong><br>
+                    ${removed.map(q => `${q.description}: ${q.quantity} ${q.unit}`).join('<br>')}
+                </div>`;
+            }
+
+            if (changed.length) {
+                html += `<div class="diff-changed" style="padding: 0.5rem; margin: 0.5rem 0; border-radius: 4px;">
+                    <strong>Changed (${changed.length}):</strong><br>
+                    ${changed.map(c => `${c.curr.description}: ${c.prev.quantity} → ${c.curr.quantity} ${c.curr.unit}`).join('<br>')}
+                </div>`;
+            }
+
+            if (!added.length && !removed.length && !changed.length) {
+                html += '<p>No differences found.</p>';
+            }
+
+            compareDiv.innerHTML = html;
+            log(`Comparison: +${added.length} -${removed.length} ~${changed.length}`, 'info');
         }
     </script>
 </body>

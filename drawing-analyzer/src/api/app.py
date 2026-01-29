@@ -157,6 +157,42 @@ def create_app(config: Optional[dict] = None) -> Flask:
 
         return jsonify({"table": table_data})
 
+    @app.route("/api/analysis/<analysis_id>/excel")
+    def get_analysis_excel(analysis_id: str):
+        """Get analysis results as Excel file"""
+        if analysis_id not in analyses:
+            return jsonify({"error": "Analysis not found"}), 404
+
+        result_data = analyses[analysis_id]
+        if "error" in result_data:
+            return jsonify(result_data), 500
+
+        try:
+            from ..core.excel_export import export_to_excel
+            from ..core.schema import AnalysisResult
+
+            # Reconstruct the AnalysisResult from stored data
+            result = AnalysisResult.model_validate(result_data.get("result", {}))
+
+            excel_bytes = export_to_excel(result)
+
+            return Response(
+                excel_bytes,
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f"attachment; filename=analysis-{analysis_id}.xlsx"
+                },
+            )
+        except Exception as e:
+            return jsonify({"error": f"Excel export failed: {str(e)}"}), 500
+
+    @app.route("/api/cache/stats")
+    def cache_stats():
+        """Get cache statistics"""
+        from ..core.cache import get_cache
+        cache = get_cache()
+        return jsonify(cache.stats())
+
     @app.route("/api/skills")
     def list_skills():
         """List available analysis skills"""
