@@ -1,0 +1,58 @@
+# Civil Site Plan Analysis Skill
+name: civil_site
+drawing_types:
+  - site_plan
+  - civil
+  - grading
+  - survey
+disciplines:
+  - civil
+description: Analyzes civil site plans including grading, utilities, and site features
+capabilities:
+  - quantity_takeoff
+  - measurement
+  - notes_extraction
+  - finding_references
+priority: 15
+analysis_prompt: |
+  Analyze this civil/site drawing region.
+
+  Focus on identifying and extracting:
+
+  1. EARTHWORK:
+     - Cut and fill areas
+     - Grading elevations and slopes
+     - Retaining walls
+     - Excavation depths
+
+  2. PAVING & HARDSCAPE:
+     - Parking areas (count spaces, square footage)
+     - Sidewalks and paths (linear feet, width)
+     - Curbs and gutters
+     - Pavement sections/types
+
+  3. UTILITIES:
+     - Storm drainage (pipes, inlets, manholes)
+     - Sanitary sewer (pipes, manholes, cleanouts)
+     - Water lines (sizes, valves, hydrants)
+     - Gas, electric, telecom routing
+
+  4. SITE FEATURES:
+     - Fencing (type, linear feet)
+     - Landscaping areas
+     - Signage and striping
+     - Site lighting
+
+  5. DIMENSIONS & ELEVATIONS:
+     - Property boundaries
+     - Setbacks
+     - Spot elevations
+     - Contour lines
+
+  For each item, provide:
+  - Quantity and unit of measure
+  - Location on drawing (bounding box)
+  - Any specifications or notes
+
+  Respond with JSON in the standard format including quantities, measurements, notes, and callouts.
+  Use CSI Division 31 (Earthwork), 32 (Exterior Improvements), 33 (Utilities) codes where applicable.

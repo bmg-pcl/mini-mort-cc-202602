@@ -1,0 +1,86 @@
+# P&ID Diagram Analysis Skill
+name: pid_diagram
+drawing_types:
+  - P&ID
+  - pid
+  - schematic
+  - process_flow
+disciplines:
+  - piping
+  - process
+  - chemical
+description: Analyzes Piping and Instrumentation Diagrams (P&IDs)
+capabilities:
+  - quantity_takeoff
+  - measurement
+  - notes_extraction
+  - symbol_recognition
+priority: 25
+analysis_prompt: |
+  Analyze this Piping and Instrumentation Diagram (P&ID) region.
+
+  Focus on identifying and extracting:
+
+  1. EQUIPMENT:
+     - Vessels (tanks, drums, columns)
+     - Heat exchangers
+     - Pumps (centrifugal, positive displacement)
+     - Compressors
+     - Equipment tag numbers (e.g., V-101, P-201)
+     - Design conditions (pressure, temperature)
+
+  2. PIPING:
+     - Line numbers (e.g., 4"-P-101-A1A)
+     - Pipe sizes
+     - Pipe specifications/classes
+     - Process services
+     - Flow direction arrows
+
+  3. VALVES:
+     - Manual valves (gate, globe, ball, plug, butterfly)
+     - Control valves (with failure position)
+     - Safety/relief valves (PSV, PRV)
+     - Check valves
+     - Valve tag numbers
+
+  4. INSTRUMENTATION:
+     - Transmitters (PT, TT, FT, LT)
+     - Indicators (PI, TI, FI, LI)
+     - Controllers (PIC, TIC, FIC, LIC)
+     - Alarms (PAH, TAL, etc.)
+     - Instrument tag numbers
+     - Control loops
+
+  5. SPECIALTIES:
+     - Strainers/filters
+     - Steam traps
+     - Orifice plates
+     - Flow elements
+     - Silencers
+     - Flame arrestors
+     - Rupture discs
+
+  6. UTILITY CONNECTIONS:
+     - Steam
+     - Condensate
+     - Cooling water
+     - Nitrogen
+     - Instrument air
+     - Utility station numbers
+
+  7. NOTES & SPECIFICATIONS:
+     - Process conditions
+     - Material specifications
+     - Insulation requirements
+     - Tracing requirements
+     - Hazardous area classifications
+
+  For each element, extract:
+  - Tag number
+  - Type/description
+  - Size/rating
+  - Service/function
+  - Associated line number
+
+  Respond with JSON in the standard format.
+  Use ISA symbology standards. Reference process equipment codes.

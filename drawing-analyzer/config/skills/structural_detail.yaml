@@ -1,0 +1,66 @@
+# Structural Detail Analysis Skill
+name: structural_detail
+drawing_types:
+  - detail
+  - section
+  - connection_detail
+  - structural_section
+disciplines:
+  - structural
+description: Analyzes structural connection details and sections
+capabilities:
+  - quantity_takeoff
+  - measurement
+  - notes_extraction
+  - symbol_recognition
+priority: 18
+analysis_prompt: |
+  Analyze this structural detail/section region.
+
+  Focus on identifying and extracting:
+
+  1. CONNECTION COMPONENTS:
+     - Bolts: diameter, grade (A325, A490), quantity
+     - Welds: type (fillet, CJP, PJP), size, length
+     - Plates: thickness, dimensions
+     - Angles: size, length
+     - Gusset plates
+     - Shear tabs
+     - Clip angles
+
+  2. REINFORCEMENT (for concrete):
+     - Rebar: size (#3-#18 or metric)
+     - Rebar spacing
+     - Hooks and bends
+     - Stirrups and ties
+     - Development lengths
+     - Lap splice lengths
+
+  3. DIMENSIONS:
+     - Edge distances
+     - Bolt spacing
+     - Plate sizes
+     - Member sizes
+     - Concrete cover
+
+  4. NOTES & SPECIFICATIONS:
+     - Material grades (A36, A992, etc.)
+     - Concrete strength (f'c)
+     - Weld symbols
+     - Finish requirements
+     - Special inspection notes
+
+  5. SECTION CUTS:
+     - Section reference marks
+     - Cut direction
+     - Scale notation
+
+  For each component, extract:
+  - Type/description
+  - Size/specification
+  - Quantity
+  - Location in detail
+  - Associated notes
+
+  Respond with JSON in the standard format.
+  Use CSI Division 05 (Metals) or 03 (Concrete) codes where applicable.
