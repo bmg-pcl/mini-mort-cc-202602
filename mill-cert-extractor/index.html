@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mill Certificate Extractor</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            padding: 30px 0;
+        }
+        header h1 {
+            color: #1a365d;
+            margin-bottom: 8px;
+        }
+        .subtitle { color: #666; }
+
+        /* Config Section */
+        .config-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .config-section h3 {
+            margin-bottom: 15px;
+            color: #1a365d;
+        }
+        .config-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .config-field {
+            flex: 1;
+            min-width: 250px;
+        }
+        .config-field label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .config-field input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .config-field input:focus {
+            outline: none;
+            border-color: #3182ce;
+        }
+        .config-status {
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .config-status.valid { color: #38a169; }
+        .config-status.invalid { color: #e53e3e; }
+
+        /* Upload Section */
+        .upload-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #cbd5e0;
+            border-radius: 8px;
+            padding: 50px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #3182ce;
+            background: #ebf8ff;
+        }
+        .upload-icon { color: #a0aec0; margin-bottom: 15px; }
+        .upload-text { font-size: 18px; color: #4a5568; }
+        .upload-subtext { color: #a0aec0; margin-top: 5px; }
+        .file-info {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px;
+            background: #edf2f7;
+            border-radius: 4px;
+        }
+        .file-name { font-weight: 500; }
+        .btn-clear {
+            background: #e53e3e;
+            color: #fff;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+        }
+        .btn-primary {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 20px auto 0;
+            padding: 12px 24px;
+            background: #3182ce;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .btn-primary:hover:not(:disabled) { background: #2c5282; }
+        .btn-primary:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Results Section */
+        .results-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .results-header h2 { color: #1a365d; }
+        .results-actions { display: flex; gap: 10px; }
+        .btn-secondary {
+            padding: 8px 16px;
+            background: #edf2f7;
+            color: #4a5568;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-secondary:hover { background: #e2e8f0; }
+
+        /* Summary Cards */
+        .results-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .summary-card {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+        }
+        .summary-card h3 {
+            font-size: 14px;
+            color: #718096;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+        .card-content { font-size: 14px; }
+        .card-content .field-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #edf2f7;
+        }
+        .card-content .field-row:last-child { border-bottom: none; }
+        .card-content .field-key { color: #4a5568; }
+        .card-content .field-value { font-weight: 500; color: #1a365d; }
+        .card-content .empty { color: #a0aec0; font-style: italic; }
+
+        /* Tables */
+        .results-tables { margin-bottom: 25px; }
+        .results-tables h3 {
+            margin-bottom: 15px;
+            color: #1a365d;
+        }
+        .extracted-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .extracted-table th, .extracted-table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .extracted-table th {
+            background: #edf2f7;
+            font-weight: 600;
+        }
+        .extracted-table tr:nth-child(even) { background: #f7fafc; }
+
+        /* KVP */
+        .results-kvp h3 {
+            margin-bottom: 15px;
+            color: #1a365d;
+        }
+        .kvp-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        .kvp-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #f7fafc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .kvp-key { color: #4a5568; }
+        .kvp-value { font-weight: 500; }
+
+        /* Raw JSON */
+        details {
+            margin-top: 20px;
+        }
+        details summary {
+            cursor: pointer;
+            padding: 10px;
+            background: #edf2f7;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        details pre {
+            background: #1a202c;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 0 0 4px 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Error */
+        .error-section {
+            background: #fff5f5;
+            border: 1px solid #fc8181;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .error-section h3 { color: #c53030; margin-bottom: 10px; }
+        .error-hint { color: #718096; font-size: 14px; margin-top: 10px; }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #a0aec0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Mill Certificate Extractor</h1>
+            <p class="subtitle">Extract data from Mill Test Reports using Azure Document Intelligence</p>
+        </header>
+
+        <main>
+            <!-- Azure Config -->
+            <section class="config-section">
+                <h3>Azure Configuration</h3>
+                <div class="config-row">
+                    <div class="config-field">
+                        <label for="endpoint">Document Intelligence Endpoint</label>
+                        <input type="url" id="endpoint" placeholder="https://your-resource.cognitiveservices.azure.com/">
+                    </div>
+                    <div class="config-field">
+                        <label for="apiKey">API Key</label>
+                        <input type="password" id="apiKey" placeholder="Your API key">
+                    </div>
+                </div>
+                <p class="config-status" id="configStatus"></p>
+            </section>
+
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <div class="upload-area" id="dropZone">
+                    <div class="upload-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <p class="upload-text">Drag & drop your mill certificate here</p>
+                    <p class="upload-subtext">PDF, PNG, JPG, TIFF supported (max 50MB)</p>
+                    <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.bmp" hidden>
+                </div>
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <span class="file-name" id="fileName"></span>
+                    <button class="btn-clear" id="clearFile">&times;</button>
+                </div>
+                <button class="btn-primary" id="extractBtn" disabled>
+                    <span class="btn-text">Extract Data</span>
+                </button>
+            </section>
+
+            <!-- Error Section -->
+            <section class="error-section" id="errorSection" style="display: none;">
+                <h3>Error</h3>
+                <p id="errorMessage"></p>
+                <p id="errorHint" class="error-hint"></p>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-header">
+                    <h2>Extraction Results</h2>
+                    <div class="results-actions">
+                        <button class="btn-secondary" id="copyBtn">Copy JSON</button>
+                        <button class="btn-secondary" id="downloadBtn">Download JSON</button>
+                    </div>
+                </div>
+
+                <div class="results-summary" id="resultsSummary"></div>
+                <div class="results-tables" id="resultsTables"></div>
+                <div class="results-kvp" id="resultsKvp"></div>
+
+                <details>
+                    <summary>Raw JSON Output</summary>
+                    <pre id="rawJson"></pre>
+                </details>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Azure Document Intelligence</p>
+        </footer>
+    </div>
+
+    <script>
+        // State
+        let selectedFile = null;
+        let extractedData = null;
+
+        // DOM Elements
+        const endpointInput = document.getElementById('endpoint');
+        const apiKeyInput = document.getElementById('apiKey');
+        const configStatus = document.getElementById('configStatus');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const clearFile = document.getElementById('clearFile');
+        const extractBtn = document.getElementById('extractBtn');
+        const errorSection = document.getElementById('errorSection');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorHint = document.getElementById('errorHint');
+        const resultsSection = document.getElementById('resultsSection');
+
+        // Load saved config
+        function loadConfig() {
+            const saved = localStorage.getItem('azureDocIntelConfig');
+            if (saved) {
+                const config = JSON.parse(saved);
+                endpointInput.value = config.endpoint || '';
+                apiKeyInput.value = config.apiKey || '';
+                validateConfig();
+            }
+        }
+
+        // Save config
+        function saveConfig() {
+            const config = {
+                endpoint: endpointInput.value.trim(),
+                apiKey: apiKeyInput.value.trim()
+            };
+            localStorage.setItem('azureDocIntelConfig', JSON.stringify(config));
+            validateConfig();
+        }
+
+        // Validate config
+        function validateConfig() {
+            const endpoint = endpointInput.value.trim();
+            const apiKey = apiKeyInput.value.trim();
+            const valid = endpoint && apiKey && endpoint.startsWith('https://');
+
+            if (valid) {
+                configStatus.textContent = 'Configuration saved';
+                configStatus.className = 'config-status valid';
+            } else if (endpoint || apiKey) {
+                configStatus.textContent = 'Please enter a valid endpoint URL and API key';
+                configStatus.className = 'config-status invalid';
+            } else {
+                configStatus.textContent = '';
+            }
+
+            updateExtractButton();
+            return valid;
+        }
+
+        // Update extract button state
+        function updateExtractButton() {
+            const configValid = endpointInput.value.trim() && apiKeyInput.value.trim();
+            extractBtn.disabled = !selectedFile || !configValid;
+        }
+
+        // Handle file selection
+        function handleFile(file) {
+            const allowed = ['application/pdf', 'image/png', 'image/jpeg', 'image/tiff', 'image/bmp'];
+            if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|png|jpe?g|tiff?|bmp)$/i)) {
+                showError('Unsupported file type', 'Please upload a PDF or image file (PNG, JPG, TIFF, BMP)');
+                return;
+            }
+            if (file.size > 50 * 1024 * 1024) {
+                showError('File too large', 'Maximum file size is 50MB');
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileInfo.style.display = 'flex';
+            hideError();
+            updateExtractButton();
+        }
+
+        // Clear file
+        function clearSelectedFile() {
+            selectedFile = null;
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            updateExtractButton();
+        }
+
+        // Show/hide error
+        function showError(msg, hint = '') {
+            errorMessage.textContent = msg;
+            errorHint.textContent = hint;
+            errorSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+        }
+
+        function hideError() {
+            errorSection.style.display = 'none';
+        }
+
+        // Extract data from Azure Document Intelligence
+        async function extractData() {
+            if (!selectedFile || !validateConfig()) return;
+
+            const endpoint = endpointInput.value.trim().replace(/\/$/, '');
+            const apiKey = apiKeyInput.value.trim();
+
+            extractBtn.disabled = true;
+            extractBtn.innerHTML = '<span class="spinner"></span> Processing...';
+            hideError();
+            resultsSection.style.display = 'none';
+
+            try {
+                // Read file as ArrayBuffer
+                const fileBuffer = await selectedFile.arrayBuffer();
+
+                // Start analysis
+                const analyzeUrl = `${endpoint}/documentintelligence/documentModels/prebuilt-layout:analyze?api-version=2024-11-30`;
+
+                const analyzeResponse = await fetch(analyzeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Ocp-Apim-Subscription-Key': apiKey,
+                        'Content-Type': 'application/octet-stream'
+                    },
+                    body: fileBuffer
+                });
+
+                if (!analyzeResponse.ok) {
+                    const errorText = await analyzeResponse.text();
+                    throw new Error(`Analysis failed: ${analyzeResponse.status} - ${errorText}`);
+                }
+
+                // Get operation location
+                const operationLocation = analyzeResponse.headers.get('Operation-Location');
+                if (!operationLocation) {
+                    throw new Error('No operation location returned');
+                }
+
+                // Poll for results
+                let result = null;
+                let attempts = 0;
+                const maxAttempts = 60;
+
+                while (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    const statusResponse = await fetch(operationLocation, {
+                        headers: { 'Ocp-Apim-Subscription-Key': apiKey }
+                    });
+
+                    if (!statusResponse.ok) {
+                        throw new Error(`Status check failed: ${statusResponse.status}`);
+                    }
+
+                    const statusData = await statusResponse.json();
+
+                    if (statusData.status === 'succeeded') {
+                        result = statusData.analyzeResult;
+                        break;
+                    } else if (statusData.status === 'failed') {
+                        throw new Error(statusData.error?.message || 'Analysis failed');
+                    }
+
+                    attempts++;
+                }
+
+                if (!result) {
+                    throw new Error('Analysis timed out');
+                }
+
+                // Process and display results
+                extractedData = processResults(result);
+                displayResults(extractedData);
+
+            } catch (err) {
+                showError(err.message, 'Check your Azure credentials and try again.');
+            } finally {
+                extractBtn.disabled = false;
+                extractBtn.innerHTML = '<span class="btn-text">Extract Data</span>';
+                updateExtractButton();
+            }
+        }
+
+        // Process Azure results into structured data
+        function processResults(result) {
+            const data = {
+                raw_text: result.content || '',
+                pages: [],
+                tables: [],
+                key_value_pairs: [],
+                mill_cert_fields: extractMillCertFields(result)
+            };
+
+            // Pages
+            if (result.pages) {
+                data.pages = result.pages.map(p => ({
+                    page_number: p.pageNumber,
+                    width: p.width,
+                    height: p.height,
+                    lines: (p.lines || []).map(l => ({ content: l.content }))
+                }));
+            }
+
+            // Tables
+            if (result.tables) {
+                data.tables = result.tables.map(t => ({
+                    row_count: t.rowCount,
+                    column_count: t.columnCount,
+                    cells: (t.cells || []).map(c => ({
+                        row_index: c.rowIndex,
+                        column_index: c.columnIndex,
+                        content: c.content,
+                        row_span: c.rowSpan || 1,
+                        column_span: c.columnSpan || 1
+                    }))
+                }));
+            }
+
+            // Key-value pairs
+            if (result.keyValuePairs) {
+                data.key_value_pairs = result.keyValuePairs.map(kv => ({
+                    key: kv.key?.content || '',
+                    value: kv.value?.content || '',
+                    confidence: kv.confidence
+                }));
+            }
+
+            return data;
+        }
+
+        // Extract mill cert specific fields
+        function extractMillCertFields(result) {
+            const fields = {
+                material_info: {},
+                chemical_composition: {},
+                mechanical_properties: {},
+                dimensions: {},
+                certifications: []
+            };
+
+            const materialKw = ['grade', 'specification', 'spec', 'material', 'alloy', 'heat no', 'heat number', 'lot no', 'lot number', 'po', 'purchase order', 'part no'];
+            const chemicalKw = ['carbon', 'manganese', 'phosphorus', 'sulfur', 'silicon', 'chromium', 'nickel', 'molybdenum', 'copper', 'vanadium', 'nitrogen', 'aluminum', 'titanium', 'niobium', 'boron'];
+            const mechanicalKw = ['tensile', 'yield', 'elongation', 'reduction', 'hardness', 'hrc', 'hrb', 'brinell', 'charpy', 'impact', 'ultimate', 'strength', 'uts'];
+            const dimensionKw = ['thickness', 'width', 'length', 'diameter', 'od', 'id', 'wall', 'size', 'weight', 'area'];
+
+            if (result.keyValuePairs) {
+                for (const kv of result.keyValuePairs) {
+                    if (!kv.key || !kv.value) continue;
+                    const key = kv.key.content.toLowerCase();
+                    const value = kv.value.content;
+
+                    if (materialKw.some(k => key.includes(k))) {
+                        fields.material_info[kv.key.content] = value;
+                    } else if (chemicalKw.some(k => key.includes(k))) {
+                        fields.chemical_composition[kv.key.content] = value;
+                    } else if (mechanicalKw.some(k => key.includes(k))) {
+                        fields.mechanical_properties[kv.key.content] = value;
+                    } else if (dimensionKw.some(k => key.includes(k))) {
+                        fields.dimensions[kv.key.content] = value;
+                    }
+                }
+            }
+
+            // Find certifications
+            if (result.content) {
+                const standards = ['ASTM', 'ASME', 'AMS', 'SAE', 'MIL-SPEC', 'ISO', 'EN', 'DIN', 'JIS', 'AWS', 'AISI', 'API'];
+                for (const std of standards) {
+                    const regex = new RegExp(`${std}[\\s-]?[A-Z]?[\\d]+[-\\w]*`, 'gi');
+                    const matches = result.content.match(regex);
+                    if (matches) {
+                        fields.certifications.push(...matches);
+                    }
+                }
+                fields.certifications = [...new Set(fields.certifications)];
+            }
+
+            return fields;
+        }
+
+        // Display results
+        function displayResults(data) {
+            resultsSection.style.display = 'block';
+
+            // Summary cards
+            const summary = document.getElementById('resultsSummary');
+            summary.innerHTML = `
+                <div class="summary-card">
+                    <h3>Material Information</h3>
+                    <div class="card-content">${renderFields(data.mill_cert_fields.material_info)}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Chemical Composition</h3>
+                    <div class="card-content">${renderFields(data.mill_cert_fields.chemical_composition)}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Mechanical Properties</h3>
+                    <div class="card-content">${renderFields(data.mill_cert_fields.mechanical_properties)}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Dimensions</h3>
+                    <div class="card-content">${renderFields(data.mill_cert_fields.dimensions)}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Certifications</h3>
+                    <div class="card-content">${data.mill_cert_fields.certifications.length ? data.mill_cert_fields.certifications.join(', ') : '<span class="empty">None detected</span>'}</div>
+                </div>
+            `;
+
+            // Tables
+            const tablesDiv = document.getElementById('resultsTables');
+            if (data.tables.length > 0) {
+                tablesDiv.innerHTML = '<h3>Extracted Tables</h3>' + data.tables.map((t, i) => renderTable(t, i)).join('');
+                tablesDiv.style.display = 'block';
+            } else {
+                tablesDiv.style.display = 'none';
+            }
+
+            // Key-value pairs
+            const kvpDiv = document.getElementById('resultsKvp');
+            if (data.key_value_pairs.length > 0) {
+                kvpDiv.innerHTML = `
+                    <h3>Key-Value Pairs</h3>
+                    <div class="kvp-container">
+                        ${data.key_value_pairs.map(kv => `
+                            <div class="kvp-item">
+                                <span class="kvp-key">${escapeHtml(kv.key)}</span>
+                                <span class="kvp-value">${escapeHtml(kv.value)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                kvpDiv.style.display = 'block';
+            } else {
+                kvpDiv.style.display = 'none';
+            }
+
+            // Raw JSON
+            document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function renderFields(obj) {
+            const keys = Object.keys(obj);
+            if (keys.length === 0) return '<span class="empty">None detected</span>';
+            return keys.map(k => `
+                <div class="field-row">
+                    <span class="field-key">${escapeHtml(k)}</span>
+                    <span class="field-value">${escapeHtml(obj[k])}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderTable(table, index) {
+            const grid = [];
+            for (let r = 0; r < table.row_count; r++) {
+                grid[r] = new Array(table.column_count).fill('');
+            }
+            for (const cell of table.cells) {
+                grid[cell.row_index][cell.column_index] = cell.content;
+            }
+
+            return `
+                <table class="extracted-table">
+                    <caption style="text-align:left;font-weight:bold;margin-bottom:8px;">Table ${index + 1}</caption>
+                    ${grid.map((row, ri) => `
+                        <tr>${row.map(cell => ri === 0 ? `<th>${escapeHtml(cell)}</th>` : `<td>${escapeHtml(cell)}</td>`).join('')}</tr>
+                    `).join('')}
+                </table>
+            `;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // Copy JSON
+        function copyJson() {
+            if (extractedData) {
+                navigator.clipboard.writeText(JSON.stringify(extractedData, null, 2));
+                const btn = document.getElementById('copyBtn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy JSON', 2000);
+            }
+        }
+
+        // Download JSON
+        function downloadJson() {
+            if (extractedData) {
+                const blob = new Blob([JSON.stringify(extractedData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `mill-cert-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // Event Listeners
+        endpointInput.addEventListener('input', saveConfig);
+        apiKeyInput.addEventListener('input', saveConfig);
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) handleFile(fileInput.files[0]);
+        });
+
+        clearFile.addEventListener('click', clearSelectedFile);
+        extractBtn.addEventListener('click', extractData);
+        document.getElementById('copyBtn').addEventListener('click', copyJson);
+        document.getElementById('downloadBtn').addEventListener('click', downloadJson);
+
+        // Init
+        loadConfig();
+    </script>
+</body>
+</html>
