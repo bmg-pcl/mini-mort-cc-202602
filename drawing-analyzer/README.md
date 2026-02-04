@@ -521,10 +521,74 @@ docker-compose up -d
 
 ### Render Deployment
 
-1. Create a new Web Service on Render
-2. Connect your repository
-3. Set environment variables
-4. Deploy using the Dockerfile
+#### Option A: Blueprint (Recommended)
+
+Use the `render.yaml` file for infrastructure-as-code deployment:
+
+1. **Push `render.yaml` to your repository** (already included)
+
+2. **Create Blueprint on Render**:
+   - Go to [Render Dashboard](https://dashboard.render.com)
+   - Click **New** → **Blueprint**
+   - Connect your GitHub/GitLab repository
+   - Render auto-detects `render.yaml`
+
+3. **Set environment variables** in the Render dashboard:
+   - `OPENAI_API_KEY`: Your API key
+   - `OPENAI_API_BASE`: Your endpoint URL (for Databricks/Azure/etc.)
+   - `OPENAI_MODEL`: Model name
+
+4. **Deploy** - Render builds and deploys automatically
+
+#### Option B: Manual Setup
+
+1. **Create Web Service**:
+   - Go to [Render Dashboard](https://dashboard.render.com)
+   - Click **New** → **Web Service**
+   - Connect your repository
+
+2. **Configure build settings**:
+   - **Environment**: Docker
+   - **Dockerfile Path**: `./Dockerfile`
+   - **Docker Context**: `.`
+
+3. **Set environment variables**:
+   ```
+   OPENAI_API_KEY=your-api-key
+   OPENAI_API_BASE=https://adb-xxx.azuredatabricks.net/serving-endpoints/your-endpoint
+   OPENAI_MODEL=databricks-claude-haiku-4-5
+   CACHE_BACKEND=sqlite
+   CACHE_DIR=/app/cache
+   ```
+
+4. **Add persistent disk** (optional but recommended):
+   - Go to **Disks** tab
+   - Add disk with mount path `/app/cache`
+   - Size: 1 GB
+
+5. **Configure health check**:
+   - Path: `/health`
+
+6. **Deploy** - Click "Create Web Service"
+
+#### Render Environment Variables for Databricks
+
+For Databricks-hosted model endpoints:
+
+```
+OPENAI_API_KEY=dapi...your-databricks-token...
+OPENAI_API_BASE=https://adb-xxxxx.x.azuredatabricks.net/serving-endpoints/your-model-endpoint
+OPENAI_MODEL=databricks-claude-haiku-4-5
+```
+
+#### Render CLI Deployment
+
+```bash
+# Install Render CLI (optional)
+npm install -g @render-cli/cli
+
+# Or use the dashboard - it's usually easier
+```
 
 ---
 
