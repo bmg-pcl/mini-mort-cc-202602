@@ -102,6 +102,62 @@ def load_skills_from_yaml(path: Path) -> list[DrawingSkill]:
     raise ValueError(f"Invalid skills file format: {path}")
 
 
+def load_skills_from_markdown(path: Path) -> list[DrawingSkill]:
+    """
+    Load skills from a Markdown file with YAML frontmatter.
+
+    Format:
+    ---
+    name: my_skill
+    disciplines: [arch]
+    ...
+    ---
+    The analysis prompt goes here...
+    """
+    try:
+        import yaml
+    except ImportError:
+        raise ImportError("PyYAML is required to load YAML/Markdown skills files. Install with: pip install pyyaml")
+
+    content = path.read_text(encoding="utf-8")
+    
+    # Simple frontmatter parsing
+    if not content.startswith("---"):
+        raise ValueError(f"Markdown skill file must start with frontmatter (---): {path}")
+
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        raise ValueError(f"Invalid markdown format in {path}. Expected frontmatter enclosed in ---")
+
+    frontmatter_str = parts[1]
+    body = parts[2].strip()
+
+    data = yaml.safe_load(frontmatter_str)
+    
+    if isinstance(data, list):
+        # If it's a list, we can't easily assign the body as prompt unless we duplicate it or it's invalid
+        # For now, let's assume one skill per MD file if body is used
+        skills = [load_skill_from_dict(item) for item in data]
+        if body and len(skills) == 1:
+             # Override prompt with body content if not specified or to be explicit
+             skills[0].analysis_prompt = body
+        return skills
+        
+    elif isinstance(data, dict):
+        # Use body as analysis_prompt
+        if body:
+            data["analysis_prompt"] = body
+            
+        if "skills" in data:
+             # If "skills" is a list, we can't easily map body. 
+             # Only supporting single skill per file for body-as-prompt feature effectively.
+             return [load_skill_from_dict(item) for item in data["skills"]]
+        else:
+            return [load_skill_from_dict(data)]
+
+    raise ValueError(f"Invalid skills file format: {path}")
+
+
 def load_skills_from_file(path: Path) -> list[DrawingSkill]:
     """
     Load skills from a file (auto-detect format by extension).
@@ -113,6 +169,8 @@ def load_skills_from_file(path: Path) -> list[DrawingSkill]:
         return load_skills_from_json(path)
     elif suffix in (".yaml", ".yml"):
         return load_skills_from_yaml(path)
+    elif suffix == ".md":
+        return load_skills_from_markdown(path)
     else:
         raise ValueError(f"Unsupported file format: {suffix}")
 
@@ -121,12 +179,12 @@ def load_skills_from_directory(directory: Path) -> list[DrawingSkill]:
     """
     Load all skills from a directory.
 
-    Scans for .json, .yaml, and .yml files.
+    Scans for .json, .yaml, .yml, and .md files.
     """
     directory = Path(directory)
     skills = []
 
-    for pattern in ("*.json", "*.yaml", "*.yml"):
+    for pattern in ("*.json", "*.yaml", "*.yml", "*.md"):
         for path in directory.glob(pattern):
             try:
                 skills.extend(load_skills_from_file(path))
