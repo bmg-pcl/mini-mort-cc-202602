@@ -3,936 +3,654 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drawing Analyzer</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <meta name="color-scheme" content="light dark">
+    <title>Drawing Analyzer | AI-Powered Quantity Takeoff</title>
+
+    <!-- Pico CSS v2.0.6 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
+    
+    <!-- Barlow & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+
+    <!-- Dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.4/marked.min.js"></script>
+
     <style>
+        /* ============================================================
+           PACKERS THEME & PREMIUM AESTHETICS
+           ============================================================ */
         :root {
-            --kernel-color: rgba(59, 130, 246, 0.3);
-            --kernel-border: rgba(59, 130, 246, 0.8);
-            --kernel-active: rgba(34, 197, 94, 0.5);
+            --brand-green: #203731;
+            --brand-green-light: #2D4F46;
+            --brand-gold: #FFB612;
+            --brand-gold-subtle: rgba(255, 182, 18, 0.12);
+            
+            --pico-font-family: 'Barlow', system-ui, -apple-system, sans-serif;
+            --pico-primary: var(--brand-green);
+            --pico-primary-background: var(--brand-green);
+            --pico-primary-hover: var(--brand-green-light);
+            
+            --kernel-active: rgba(255, 182, 18, 0.4);
+            --kernel-done: rgba(32, 55, 49, 0.15);
         }
 
-        .container {
-            max-width: 1400px;
-            padding: 1rem;
+        [data-theme="dark"] {
+            --pico-primary: var(--brand-gold);
+            --pico-primary-background: var(--brand-green);
+            --pico-primary-hover: var(--brand-gold);
         }
 
-        header {
-            margin-bottom: 2rem;
+        body {
+            background-color: var(--pico-background-color);
+            transition: background-color 0.3s ease;
         }
 
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-        }
-
-        @media (max-width: 1200px) {
-            .main-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .drawing-panel {
-            position: relative;
-            background: var(--pico-card-background-color);
-            border-radius: var(--pico-border-radius);
-            padding: 1rem;
-            min-height: 500px;
-        }
-
-        .drawing-container {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            background: #f5f5f5;
-            min-height: 400px;
-        }
-
-        .pdf-canvas {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .kernel-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-
-        .kernel-box {
-            position: absolute;
-            border: 2px solid var(--kernel-border);
-            background: var(--kernel-color);
-            transition: all 0.3s ease;
-        }
-
-        .kernel-box.active {
-            background: var(--kernel-active);
-            border-color: rgb(34, 197, 94);
-            animation: pulse 1s infinite;
-        }
-
-        .kernel-box.completed {
-            background: rgba(34, 197, 94, 0.2);
-            border-color: rgba(34, 197, 94, 0.5);
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-
-        .page-nav {
+        /* --- Splash Screen --- */
+        #splash-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--brand-green);
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 1rem;
-            margin: 0.5rem 0;
+            z-index: 9999;
+            color: var(--brand-gold);
+            transition: opacity 0.8s ease, visibility 0.8s;
+        }
+        #splash-screen h1 { font-size: 3rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+        #splash-screen p { font-size: 1.25rem; font-weight: 400; opacity: 0.8; }
+        .spinner-gold {
+            width: 40px; height: 40px; border: 4px solid rgba(255,182,18,0.2);
+            border-top-color: var(--brand-gold); border-radius: 50%;
+            animation: spin 1s linear infinite; margin-top: 2rem;
         }
 
-        .page-nav button {
-            padding: 0.25rem 0.75rem;
-            margin: 0;
-        }
-
-        .page-nav span {
-            font-size: 0.9rem;
-        }
-
-        .results-panel {
-            background: var(--pico-card-background-color);
-            border-radius: var(--pico-border-radius);
-            padding: 1rem;
-        }
-
-        .tabs {
+        /* --- Layout --- */
+        .app-header {
+            background: var(--brand-green);
+            color: white;
+            padding: 0.75rem 1.5rem;
             display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid var(--pico-muted-border-color);
-            padding-bottom: 0.5rem;
-            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .app-header h1 { font-size: 1.25rem; font-weight: 600; margin: 0; color: white; display: flex; align-items: center; gap: 0.75rem; }
+        .app-header h1 span { color: var(--brand-gold); }
+        .app-header nav a { color: var(--brand-gold); font-weight: 500; text-decoration: none; margin-left: 1.5rem; font-size: 0.9rem; transition: opacity 0.2s; }
+        .app-header nav a:hover { opacity: 0.8; }
+
+        .main-container { padding-top: 2rem; max-width: 1400px; margin: 0 auto; }
+
+        /* --- Tabs --- */
+        nav[aria-label="breadcrumb"] { margin-bottom: 2rem; border-bottom: 1px solid var(--pico-muted-border-color); }
+        nav[aria-label="breadcrumb"] ul li a { font-weight: 600; font-size: 1.1rem; padding-bottom: 0.75rem; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        nav[aria-label="breadcrumb"] ul li a.active { border-bottom-color: var(--brand-gold); color: var(--pico-primary); }
+
+        /* --- Panels --- */
+        .panel { display: none; animation: fadeIn 0.4s ease; }
+        .panel.active { display: block; }
+
+        .drawing-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 2rem;
+            align-items: start;
         }
 
-        .tab-btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            background: none;
-            cursor: pointer;
-            border-radius: var(--pico-border-radius) var(--pico-border-radius) 0 0;
+        @media (max-width: 1100px) {
+            .drawing-grid { grid-template-columns: 1fr; }
         }
 
-        .tab-btn.active {
-            background: var(--pico-primary-background);
-            color: var(--pico-primary-inverse);
-        }
-
-        .tab-content {
-            display: none;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 20px;
-            background: var(--pico-muted-border-color);
-            border-radius: var(--pico-border-radius);
+        /* --- Drawing Visualization --- */
+        .drawing-viewer {
+            position: relative;
+            background: #f8f9fa;
+            border: 1px solid var(--pico-muted-border-color);
+            border-radius: 12px;
             overflow: hidden;
-            margin: 1rem 0;
+            box-shadow: var(--pico-box-shadow);
+        }
+        .canvas-wrapper { position: relative; width: 100%; min-height: 600px; overflow: auto; cursor: crosshair; }
+        #pdf-canvas { width: 100%; height: auto; display: block; }
+        .overlay-layer { position: absolute; inset: 0; pointer-events: none; }
+        .kernel-box {
+            position: absolute; border: 2px solid var(--brand-gold);
+            background: var(--kernel-active); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .kernel-box.done { background: var(--kernel-done); border-color: var(--brand-green); }
+
+        /* --- UI Components --- */
+        .card-premium {
+            border-radius: 12px; border: 1px solid var(--pico-muted-border-color);
+            background: var(--pico-card-background-color); box-shadow: var(--pico-box-shadow);
+            padding: 1.5rem;
+        }
+        .upload-area {
+            border: 2px dashed var(--pico-muted-border-color); border-radius: 12px;
+            padding: 4rem 2rem; text-align: center; cursor: pointer; transition: all 0.2s;
+        }
+        .upload-area:hover { border-color: var(--brand-gold); background: var(--brand-gold-subtle); }
+        
+        .progress-compact {
+            height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin: 1rem 0;
+        }
+        .progress-bar {
+            height: 100%; background: var(--brand-gold); width: 0%; transition: width 0.4s ease;
         }
 
-        .progress-fill {
-            height: 100%;
-            background: var(--pico-primary-background);
-            transition: width 0.3s ease;
+        /* --- Tables --- */
+        table.premium-table { font-size: 0.9rem; }
+        table.premium-table thead th { background: #f4f6f8; color: var(--brand-green); font-weight: 600; }
+        [data-theme="dark"] table.premium-table thead th { background: #1a2a26; color: var(--brand-gold); }
+        
+        .badge {
+            padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600;
         }
+        .status-pill { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 
-        .quantity-table {
-            width: 100%;
-            font-size: 0.9rem;
-        }
+        /* --- Animations --- */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .quantity-table th,
-        .quantity-table td {
-            padding: 0.5rem;
-        }
-
-        .quantity-table tr:hover {
-            background: var(--pico-card-sectioning-background-color);
-            cursor: pointer;
-        }
-
-        .quantity-table tr.highlighted {
-            background: rgba(59, 130, 246, 0.1);
-        }
-
-        .confidence-badge {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 0.25rem;
-            font-size: 0.8rem;
-        }
-
-        .confidence-high {
-            background: rgba(34, 197, 94, 0.2);
-            color: rgb(34, 197, 94);
-        }
-
-        .confidence-medium {
-            background: rgba(234, 179, 8, 0.2);
-            color: rgb(234, 179, 8);
-        }
-
-        .confidence-low {
-            background: rgba(239, 68, 68, 0.2);
-            color: rgb(239, 68, 68);
-        }
-
-        .upload-zone {
-            border: 2px dashed var(--pico-muted-border-color);
-            border-radius: var(--pico-border-radius);
-            padding: 3rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .upload-zone:hover,
-        .upload-zone.dragover {
-            border-color: var(--pico-primary);
-            background: var(--pico-primary-focus);
-        }
-
-        .upload-zone input {
-            display: none;
-        }
-
-        .classification-card {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .stat-card {
-            background: var(--pico-card-sectioning-background-color);
-            padding: 1rem;
-            border-radius: var(--pico-border-radius);
-            text-align: center;
-        }
-
-        .stat-card .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--pico-primary);
-        }
-
-        .stat-card .label {
-            font-size: 0.8rem;
-            color: var(--pico-muted-color);
-        }
-
-        .log-output {
-            font-family: monospace;
-            font-size: 0.8rem;
-            background: var(--pico-code-background-color);
-            padding: 1rem;
-            border-radius: var(--pico-border-radius);
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .log-entry {
-            margin: 0.25rem 0;
-        }
-
-        .log-entry.info { color: var(--pico-color); }
-        .log-entry.success { color: rgb(34, 197, 94); }
-        .log-entry.error { color: rgb(239, 68, 68); }
-
-        .compare-section {
-            margin-top: 2rem;
-            padding: 1rem;
-            background: var(--pico-card-sectioning-background-color);
-            border-radius: var(--pico-border-radius);
-        }
-
-        .compare-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-
-        .diff-added { background: rgba(34, 197, 94, 0.2); }
-        .diff-removed { background: rgba(239, 68, 68, 0.2); }
-        .diff-changed { background: rgba(234, 179, 8, 0.2); }
-
-        .export-buttons {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 1rem;
-        }
-
-        .export-buttons button {
-            flex: 1;
-            min-width: 100px;
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid var(--pico-primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 0.5rem;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .highlight-box {
-            position: absolute;
-            border: 3px solid #ff6b6b;
-            background: rgba(255, 107, 107, 0.2);
-            pointer-events: none;
-            transition: all 0.2s ease;
-        }
+        /* --- Modal --- */
+        #about-dialog article { max-width: 900px; width: 90vw; }
+        #about-content { max-height: 70vh; overflow-y: auto; text-align: left; }
     </style>
 </head>
 <body>
-    <main class="container">
-        <header>
-            <h1>Drawing Analyzer</h1>
-            <p>AI-powered technical drawing analysis with convolutional window visualization</p>
-        </header>
 
-        <!-- Upload Section -->
-        <section id="upload-section">
-            <div class="upload-zone" id="upload-zone">
-                <input type="file" id="file-input" accept=".pdf">
-                <h3>Drop PDF here or click to upload</h3>
-                <p>Supports technical/construction drawings</p>
-            </div>
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <h1>Drawing <span>Analyzer</span></h1>
+        <p>Intelligent Construction Intelligence</p>
+        <div class="spinner-gold"></div>
+    </div>
 
-            <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
-                <label>
-                    API Provider
-                    <select id="provider-select">
-                        <option value="openai">OpenAI</option>
-                        <option value="anthropic">Anthropic</option>
-                    </select>
-                </label>
-                <label>
-                    API Key
-                    <input type="password" id="api-key-input" placeholder="sk-... or leave blank for env var">
-                </label>
-                <label>
-                    Page (optional)
-                    <input type="number" id="page-input" placeholder="All pages" min="1">
-                </label>
-                <label>
-                    <input type="checkbox" id="use-cache" checked>
-                    Use cache
-                </label>
-            </div>
+    <!-- App Header -->
+    <header class="app-header">
+        <h1><span>📐</span> Drawing Analyzer</h1>
+        <nav>
+            <a href="#" id="about-link">About</a>
+            <a href="#" id="theme-toggle">🌙 Theme</a>
+        </nav>
+    </header>
 
-            <button id="analyze-btn" style="margin-top: 1rem; width: 100%;" disabled>
-                Analyze Drawing
-            </button>
-        </section>
+    <main class="main-container container">
+        
+        <!-- Navigation Tabs -->
+        <nav aria-label="breadcrumb">
+            <ul>
+                <li><a href="#" class="tab-link active" data-target="panel-project">Project</a></li>
+                <li><a href="#" class="tab-link" data-target="panel-takeoffs">Takeoffs</a></li>
+                <li><a href="#" class="tab-link" data-target="panel-config">Config</a></li>
+            </ul>
+        </nav>
 
-        <!-- Analysis Section (hidden until file uploaded) -->
-        <section id="analysis-section" style="display: none;">
-            <div class="main-grid">
-                <!-- Left: Drawing with kernel overlay -->
-                <div class="drawing-panel">
-                    <h3>Drawing Preview</h3>
-                    <div class="drawing-container" id="drawing-container">
-                        <canvas id="pdf-canvas" class="pdf-canvas"></canvas>
-                        <div class="kernel-overlay" id="kernel-overlay"></div>
-                        <div class="highlight-box" id="highlight-box" style="display: none;"></div>
+        <!-- PROJECT PANEL -->
+        <section id="panel-project" class="panel active">
+            <div class="drawing-grid">
+                
+                <!-- Left: Viewer -->
+                <div class="viewer-section">
+                    <div class="drawing-viewer" id="drop-zone">
+                        <div id="upload-prompt" class="upload-area">
+                            <input type="file" id="file-input" hidden accept=".pdf">
+                            <h2 style="color: var(--brand-green)">Drop PDF Drawing Here</h2>
+                            <p>or click to browse your computer</p>
+                        </div>
+                        <div id="viewer-controls" class="canvas-wrapper" style="display: none;">
+                            <canvas id="pdf-canvas"></canvas>
+                            <div id="kernel-overlay" class="overlay-layer"></div>
+                        </div>
                     </div>
-                    <div class="page-nav" id="page-nav" style="display: none;">
-                        <button id="prev-page">&lt; Prev</button>
-                        <span id="page-info">Page 1 of 1</span>
-                        <button id="next-page">Next &gt;</button>
+                    
+                    <div id="analysis-controls" style="margin-top: 1.5rem; display: none;">
+                        <div class="grid">
+                            <div>
+                                <hgroup>
+                                    <h4 id="status-text">Ready to analyze</h4>
+                                    <p id="filename-text"></p>
+                                </hgroup>
+                            </div>
+                            <div style="text-align: right">
+                                <button class="btn-gold" id="btn-analyze">Start Analysis</button>
+                            </div>
+                        </div>
+                        <div class="progress-compact"><div id="main-progress" class="progress-bar"></div></div>
                     </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
-                    </div>
-                    <p id="progress-text">Ready to analyze</p>
                 </div>
 
-                <!-- Right: Results -->
-                <div class="results-panel">
-                    <div class="classification-card" id="classification-card" style="display: none;">
-                        <div class="stat-card">
-                            <div class="value" id="drawing-type">-</div>
-                            <div class="label">Drawing Type</div>
+                <!-- Right: Summary Card -->
+                <div class="summary-section">
+                    <article class="card-premium">
+                        <header style="padding: 1rem 1.5rem; border-bottom: 1px solid #eee">
+                            <h5 style="margin:0">Analysis Insights</h5>
+                        </header>
+                        
+                        <div id="summary-empty" style="padding: 2rem; text-align: center; color: #999">
+                            <p>No analysis run yet.</p>
                         </div>
-                        <div class="stat-card">
-                            <div class="value" id="discipline">-</div>
-                            <div class="label">Discipline</div>
+
+                        <div id="summary-data" style="display: none;">
+                            <div class="grid" style="margin-bottom: 1.5rem">
+                                <div>
+                                    <small>Drawing Type</small>
+                                    <div id="res-type" style="font-weight: 700; font-size: 1.1rem">-</div>
+                                </div>
+                                <div>
+                                    <small>Discipline</small>
+                                    <div id="res-discipline" style="font-weight: 700; font-size: 1.1rem">-</div>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <div class="grid">
+                                <div>
+                                    <h2 id="count-items" style="margin:0">0</h2>
+                                    <small>Quantities</small>
+                                </div>
+                                <div>
+                                    <h2 id="count-notes" style="margin:0">0</h2>
+                                    <small>Notes</small>
+                                </div>
+                            </div>
+
+                            <footer style="margin-top: 2rem">
+                                <button class="outline" id="view-takeoffs-btn">View Full Results</button>
+                            </footer>
                         </div>
-                        <div class="stat-card">
-                            <div class="value" id="confidence">-</div>
-                            <div class="label">Confidence</div>
+                    </article>
+
+                    <article class="card-premium" style="margin-top: 1.5rem">
+                        <h6 style="font-size: 0.8rem; text-transform: uppercase; color: #777">Application Log</h6>
+                        <div id="app-log" style="height: 150px; overflow-y: auto; font-family: 'JetBrains Mono'; font-size: 0.75rem; background: #fafafa; padding: 0.5rem; border-radius: 6px;">
                         </div>
-                    </div>
-
-                    <div class="tabs">
-                        <button class="tab-btn active" data-tab="quantities">Quantities</button>
-                        <button class="tab-btn" data-tab="measurements">Measurements</button>
-                        <button class="tab-btn" data-tab="notes">Notes</button>
-                        <button class="tab-btn" data-tab="compare">Compare</button>
-                        <button class="tab-btn" data-tab="log">Log</button>
-                    </div>
-
-                    <div class="tab-content active" id="tab-quantities">
-                        <table class="quantity-table">
-                            <thead>
-                                <tr>
-                                    <th>Description</th>
-                                    <th>Qty</th>
-                                    <th>Unit</th>
-                                    <th>Category</th>
-                                    <th>Conf.</th>
-                                </tr>
-                            </thead>
-                            <tbody id="quantities-tbody"></tbody>
-                        </table>
-                    </div>
-
-                    <div class="tab-content" id="tab-measurements">
-                        <table class="quantity-table">
-                            <thead>
-                                <tr>
-                                    <th>Value</th>
-                                    <th>Unit</th>
-                                    <th>Label</th>
-                                    <th>Confidence</th>
-                                </tr>
-                            </thead>
-                            <tbody id="measurements-tbody"></tbody>
-                        </table>
-                    </div>
-
-                    <div class="tab-content" id="tab-notes">
-                        <div id="notes-list"></div>
-                    </div>
-
-                    <div class="tab-content" id="tab-compare">
-                        <div class="compare-section">
-                            <h4>Compare with Previous Analysis</h4>
-                            <input type="file" id="compare-file" accept=".json" style="margin-bottom: 1rem;">
-                            <div id="compare-results"></div>
-                        </div>
-                    </div>
-
-                    <div class="tab-content" id="tab-log">
-                        <div class="log-output" id="log-output"></div>
-                    </div>
-
-                    <div class="export-buttons">
-                        <button id="export-json-btn" disabled>Export JSON</button>
-                        <button id="export-csv-btn" disabled>Export CSV</button>
-                        <button id="export-excel-btn" disabled>Export Excel</button>
-                    </div>
+                    </article>
                 </div>
             </div>
         </section>
+
+        <!-- TAKEOFFS PANEL -->
+        <section id="panel-takeoffs" class="panel">
+            <article class="card-premium">
+                <header style="display: flex; justify-content: space-between; align-items: center">
+                    <h4 style="margin:0">Quantity Takeoff Schedule</h4>
+                    <div class="grid" style="gap: 0.5rem">
+                        <button class="secondary outline" style="padding: 0.4rem 1rem; font-size: 0.8rem" id="export-json">JSON</button>
+                        <button class="secondary outline" style="padding: 0.4rem 1rem; font-size: 0.8rem" id="export-excel">Excel</button>
+                    </div>
+                </header>
+                
+                <div style="overflow-x: auto">
+                    <table class="premium-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th style="text-align: right">Quantity</th>
+                                <th>Unit</th>
+                                <th>Category</th>
+                                <th>Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="takeoff-tbody">
+                            <tr><td colspan="5" style="text-align:center; padding: 3rem; color: #999">No data available. Run analysis from the Project tab.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+
+        <!-- CONFIG PANEL -->
+        <section id="panel-config" class="panel">
+            <div style="max-width: 600px; margin: 0 auto">
+                <article class="card-premium">
+                    <h3>API Settings</h3>
+                    <p>Configure your model provider and connection details.</p>
+                    
+                    <form id="config-form">
+                        <label for="conf-provider">AI Provider</label>
+                        <select id="conf-provider">
+                            <option value="openai">OpenAI (GPT-4o)</option>
+                            <option value="anthropic">Anthropic (Claude 3.5)</option>
+                        </select>
+
+                        <label for="conf-endpoint">API Endpoint (Base URL)</label>
+                        <input type="url" id="conf-endpoint" placeholder="https://api.openai.com/v1">
+                        <small>Leave blank for default. Useful for Azure, Local LLMs, or Proxies.</small>
+
+                        <label for="conf-key">API Key</label>
+                        <input type="password" id="conf-key" placeholder="sk-...">
+                        <small>If left blank, the server will use its environment variables.</small>
+
+                        <hr>
+                        
+                        <label>
+                            <input type="checkbox" id="conf-cache" checked>
+                            Enable Analysis Caching
+                        </label>
+                        
+                        <footer style="margin-top: 2rem">
+                            <button type="submit">Save Configuration</button>
+                        </footer>
+                    </form>
+                </article>
+            </div>
+        </section>
+
     </main>
 
+    <!-- About Modal -->
+    <dialog id="about-dialog">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="about-close"></a>
+                <h3>About Drawing Analyzer</h3>
+            </header>
+            <div id="about-content">
+                Loading documentation...
+            </div>
+        </article>
+    </dialog>
+
+    <!-- Global Logic -->
     <script type="module">
         // Import PDF.js
         const pdfjsLib = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs');
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
 
-        // State
-        let currentFile = null;
-        let pdfDoc = null;
-        let currentPage = 1;
-        let totalPages = 1;
-        let analysisId = null;
-        let analysisResult = null;
-        let kernelBoxes = [];
-        let canvasWidth = 0;
-        let canvasHeight = 0;
-
-        // DOM elements
-        const uploadZone = document.getElementById('upload-zone');
-        const fileInput = document.getElementById('file-input');
-        const analyzeBtn = document.getElementById('analyze-btn');
-        const uploadSection = document.getElementById('upload-section');
-        const analysisSection = document.getElementById('analysis-section');
-        const pdfCanvas = document.getElementById('pdf-canvas');
-        const kernelOverlay = document.getElementById('kernel-overlay');
-        const progressFill = document.getElementById('progress-fill');
-        const progressText = document.getElementById('progress-text');
-        const highlightBox = document.getElementById('highlight-box');
-
-        // File upload handling
-        uploadZone.addEventListener('click', () => fileInput.click());
-        uploadZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadZone.classList.add('dragover');
-        });
-        uploadZone.addEventListener('dragleave', () => {
-            uploadZone.classList.remove('dragover');
-        });
-        uploadZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadZone.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].type === 'application/pdf') {
-                handleFile(files[0]);
+        // 1. CONFIG & STATE
+        const State = {
+            currentFile: null,
+            pdfDoc: null,
+            analysisId: null,
+            result: null,
+            config: {
+                provider: localStorage.getItem('da_provider') || 'openai',
+                endpoint: localStorage.getItem('da_endpoint') || '',
+                apiKey: localStorage.getItem('da_key') || '',
+                useCache: true
             }
+        };
+
+        // 2. BUS Implementation (from offline-web-app skill)
+        const Bus = (() => {
+            const _listeners = {};
+            return {
+                on(topic, handler) {
+                    if (!_listeners[topic]) _listeners[topic] = [];
+                    _listeners[topic].push(handler);
+                },
+                emit(topic, data) {
+                    (_listeners[topic] || []).forEach(fn => fn(data, topic));
+                }
+            };
+        })();
+
+        // 3. INIT & NAVIGATION
+        function init() {
+            // Hero Splash
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                splash.style.opacity = '0';
+                setTimeout(() => splash.style.visibility = 'hidden', 800);
+            }, 3000);
+
+            // Populate Config Form
+            document.getElementById('conf-provider').value = State.config.provider;
+            document.getElementById('conf-endpoint').value = State.config.endpoint;
+            document.getElementById('conf-key').value = State.config.apiKey;
+
+            // Load README for About
+            fetch('/README.md').then(r => r.text()).then(text => {
+                document.getElementById('about-content').innerHTML = marked.parse(text);
+            }).catch(() => {
+                document.getElementById('about-content').innerHTML = "Failed to load README.md";
+            });
+
+            log("Application initialized.");
+        }
+
+        // Tab Switching
+        document.querySelectorAll('.tab-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.tab-link').forEach(l => l.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                link.classList.add('active');
+                document.getElementById(link.dataset.target).classList.add('active');
+            });
+        });
+
+        // Config Saving
+        document.getElementById('config-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            State.config.provider = document.getElementById('conf-provider').value;
+            State.config.endpoint = document.getElementById('conf-endpoint').value;
+            State.config.apiKey = document.getElementById('conf-key').value;
+            State.config.useCache = document.getElementById('conf-cache').checked;
+            
+            localStorage.setItem('da_provider', State.config.provider);
+            localStorage.setItem('da_endpoint', State.config.endpoint);
+            localStorage.setItem('da_key', State.config.apiKey);
+            
+            log("Configuration saved to local storage.", "success");
+            showToast("Settings saved!");
+        });
+
+        // About Modal
+        document.getElementById('about-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('about-dialog').showModal();
+        });
+        document.getElementById('about-close').addEventListener('click', () => {
+            document.getElementById('about-dialog').close();
+        });
+
+        // Theme Toggle
+        document.getElementById('theme-toggle').addEventListener('click', (e) => {
+            e.preventDefault();
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            e.target.innerText = next === 'dark' ? '☀️ Theme' : '🌙 Theme';
+        });
+
+        // 4. DRAWING HANDLING
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--brand-gold)'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
+            if (e.target.files.length) handleFile(e.target.files[0]);
         });
 
         async function handleFile(file) {
-            currentFile = file;
-            analyzeBtn.disabled = false;
-            uploadZone.innerHTML = `<h3>${file.name}</h3><p>Ready to analyze</p>`;
+            if (file.type !== 'application/pdf') {
+                showToast("Please upload a PDF file", "error");
+                return;
+            }
+            State.currentFile = file;
+            document.getElementById('upload-prompt').style.display = 'none';
+            document.getElementById('viewer-controls').style.display = 'block';
+            document.getElementById('analysis-controls').style.display = 'block';
+            document.getElementById('filename-text').innerText = file.name;
+            
+            log(`Loaded file: ${file.name}`);
 
-            analysisSection.style.display = 'block';
-
-            // Load PDF with PDF.js
             try {
                 const arrayBuffer = await file.arrayBuffer();
-                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                totalPages = pdfDoc.numPages;
-                currentPage = 1;
-
-                // Update page navigation
-                if (totalPages > 1) {
-                    document.getElementById('page-nav').style.display = 'flex';
-                    updatePageInfo();
-                }
-
-                // Render first page
-                await renderPage(currentPage);
-                log(`PDF loaded: ${file.name} (${totalPages} pages)`, 'success');
-
-            } catch (error) {
-                log(`Error loading PDF: ${error.message}`, 'error');
+                State.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                await renderPage(1);
+            } catch (err) {
+                log("Error loading PDF: " + err.message, "error");
             }
         }
 
-        async function renderPage(pageNum) {
-            if (!pdfDoc) return;
-
-            const page = await pdfDoc.getPage(pageNum);
+        async function renderPage(num) {
+            const page = await State.pdfDoc.getPage(num);
             const viewport = page.getViewport({ scale: 1.5 });
-
-            const canvas = pdfCanvas;
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            canvasWidth = viewport.width;
-            canvasHeight = viewport.height;
-
-            await page.render({
-                canvasContext: context,
-                viewport: viewport
-            }).promise;
-
-            // Clear kernel overlay when changing pages
-            kernelOverlay.innerHTML = '';
-            kernelBoxes = [];
+            const canvas = document.getElementById('pdf-canvas');
+            canvas.width = viewport.width; canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
         }
 
-        function updatePageInfo() {
-            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
-        }
-
-        document.getElementById('prev-page').addEventListener('click', async () => {
-            if (currentPage > 1) {
-                currentPage--;
-                await renderPage(currentPage);
-                updatePageInfo();
-            }
-        });
-
-        document.getElementById('next-page').addEventListener('click', async () => {
-            if (currentPage < totalPages) {
-                currentPage++;
-                await renderPage(currentPage);
-                updatePageInfo();
-            }
-        });
-
-        // Tab handling
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                btn.classList.add('active');
-                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-            });
-        });
-
-        // Analyze button
-        analyzeBtn.addEventListener('click', startAnalysis);
+        // 5. ANALYSIS LOGIC
+        const btnAnalyze = document.getElementById('btn-analyze');
+        btnAnalyze.addEventListener('click', startAnalysis);
 
         async function startAnalysis() {
-            if (!currentFile) return;
-
-            analyzeBtn.disabled = true;
-            analyzeBtn.innerHTML = '<span class="loading-spinner"></span>Analyzing...';
-            progressText.textContent = 'Starting analysis...';
-            progressFill.style.width = '5%';
-            clearResults();
-
+            if (!State.currentFile) return;
+            
+            btnAnalyze.disabled = true;
+            btnAnalyze.innerText = "Processing...";
+            document.getElementById('main-progress').style.width = '10%';
+            document.getElementById('app-log').innerHTML = ''; // Clear log
+            
             const formData = new FormData();
-            formData.append('file', currentFile);
-            formData.append('provider', document.getElementById('provider-select').value);
-            formData.append('use_cache', document.getElementById('use-cache').checked);
-
-            const apiKey = document.getElementById('api-key-input').value;
-            if (apiKey) formData.append('api_key', apiKey);
-
-            const page = document.getElementById('page-input').value;
-            if (page) formData.append('page', page);
+            formData.append('file', State.currentFile);
+            formData.append('provider', State.config.provider);
+            formData.append('use_cache', State.config.useCache);
+            if (State.config.endpoint) formData.append('base_url', State.config.endpoint);
+            if (State.config.apiKey) formData.append('api_key', State.config.apiKey);
 
             try {
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
+                const res = await fetch('/api/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
 
-                const data = await response.json();
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-
-                analysisId = data.analysis_id;
-                log('Analysis started: ' + analysisId, 'info');
-
+                State.analysisId = data.analysis_id;
+                log(`Analysis Task ID: ${State.analysisId}`);
                 pollAnalysis();
-
-            } catch (error) {
-                log('Error: ' + error.message, 'error');
-                progressText.textContent = 'Error: ' + error.message;
-                resetAnalyzeBtn();
+            } catch (err) {
+                log("Analysis failed: " + err.message, "error");
+                btnAnalyze.disabled = false;
+                btnAnalyze.innerText = "Start Analysis";
             }
-        }
-
-        function resetAnalyzeBtn() {
-            analyzeBtn.disabled = false;
-            analyzeBtn.innerHTML = 'Analyze Drawing';
         }
 
         async function pollAnalysis() {
-            if (!analysisId) return;
-
+            if (!State.analysisId) return;
             try {
-                const response = await fetch(`/api/analysis/${analysisId}`);
-                const data = await response.json();
+                const res = await fetch(`/api/analysis/${State.analysisId}`);
+                const data = await res.json();
 
                 if (data.status === 'in_progress') {
                     const progress = data.progress || [];
-                    progressFill.style.width = Math.min(10 + progress.length * 5, 90) + '%';
-                    progressText.textContent = `Analyzing... (${progress.length} events)`;
-
-                    progress.forEach((event, idx) => {
-                        if (event.type === 'kernel_analyzed') {
-                            addKernelBox(event.kernel, idx === progress.length - 1);
-                        }
+                    const percent = Math.min(15 + progress.length * 4, 95);
+                    document.getElementById('main-progress').style.width = percent + '%';
+                    
+                    progress.forEach(event => {
+                        if (event.type === 'kernel_analyzed') drawKernel(event.kernel);
+                        if (event.type === 'completed') log("Server reported completion.");
                     });
-
-                    setTimeout(pollAnalysis, 1000);
-
+                    
+                    setTimeout(pollAnalysis, 1500);
                 } else if (data.status === 'completed') {
-                    progressFill.style.width = '100%';
-                    progressText.textContent = 'Analysis complete!';
-                    analysisResult = data;
-                    displayResults(data);
-                    log('Analysis completed successfully', 'success');
-                    resetAnalyzeBtn();
-
+                    document.getElementById('main-progress').style.width = '100%';
+                    State.result = data;
+                    finalizeResults(data);
                 } else if (data.status === 'error') {
                     throw new Error(data.error);
                 }
-
-            } catch (error) {
-                log('Polling error: ' + error.message, 'error');
-                progressText.textContent = 'Error: ' + error.message;
-                resetAnalyzeBtn();
+            } catch (err) {
+                log("Polling error: " + err.message, "error");
+                btnAnalyze.disabled = false;
+                btnAnalyze.innerText = "Start Analysis";
             }
         }
 
-        function displayResults(data) {
-            if (data.classification) {
-                document.getElementById('classification-card').style.display = 'grid';
-                document.getElementById('drawing-type').textContent = data.classification.drawing_type || '-';
-                document.getElementById('discipline').textContent = data.classification.discipline || '-';
-                document.getElementById('confidence').textContent =
-                    data.classification.confidence ? (data.classification.confidence * 100).toFixed(0) + '%' : '-';
-            }
-
-            const quantitiesTbody = document.getElementById('quantities-tbody');
-            quantitiesTbody.innerHTML = '';
-            (data.quantities || []).forEach((q, idx) => {
-                const tr = document.createElement('tr');
-                tr.dataset.bbox = JSON.stringify(q.source_bbox);
-                tr.innerHTML = `
-                    <td>${escapeHtml(q.description || '')}</td>
-                    <td>${q.quantity || 0}</td>
-                    <td>${q.unit || ''}</td>
-                    <td>${q.category?.level1 || ''}</td>
-                    <td>${getConfidenceBadge(q.confidence)}</td>
-                `;
-                // Hover to highlight on drawing
-                tr.addEventListener('mouseenter', () => highlightOnDrawing(q.source_bbox));
-                tr.addEventListener('mouseleave', () => hideHighlight());
-                quantitiesTbody.appendChild(tr);
-            });
-
-            const measurementsTbody = document.getElementById('measurements-tbody');
-            measurementsTbody.innerHTML = '';
-            (data.measurements || []).forEach(m => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${m.value || 0}</td>
-                    <td>${m.unit || ''}</td>
-                    <td>${escapeHtml(m.label || '')}</td>
-                    <td>${getConfidenceBadge(m.confidence)}</td>
-                `;
-                tr.addEventListener('mouseenter', () => highlightOnDrawing(m.source_bbox));
-                tr.addEventListener('mouseleave', () => hideHighlight());
-                measurementsTbody.appendChild(tr);
-            });
-
-            const notesList = document.getElementById('notes-list');
-            notesList.innerHTML = '';
-            (data.notes || []).forEach(n => {
-                const div = document.createElement('div');
-                div.style.marginBottom = '0.5rem';
-                div.style.padding = '0.5rem';
-                div.style.cursor = 'pointer';
-                div.innerHTML = `<strong>${n.note_type || 'note'}:</strong> ${escapeHtml(n.content || '')}`;
-                div.addEventListener('mouseenter', () => highlightOnDrawing(n.source_bbox));
-                div.addEventListener('mouseleave', () => hideHighlight());
-                notesList.appendChild(div);
-            });
-
-            document.getElementById('export-json-btn').disabled = false;
-            document.getElementById('export-csv-btn').disabled = false;
-            document.getElementById('export-excel-btn').disabled = false;
-        }
-
-        function highlightOnDrawing(bbox) {
-            if (!bbox) return;
-            highlightBox.style.display = 'block';
-            highlightBox.style.left = (bbox.x1 * 100) + '%';
-            highlightBox.style.top = (bbox.y1 * 100) + '%';
-            highlightBox.style.width = ((bbox.x2 - bbox.x1) * 100) + '%';
-            highlightBox.style.height = ((bbox.y2 - bbox.y1) * 100) + '%';
-        }
-
-        function hideHighlight() {
-            highlightBox.style.display = 'none';
-        }
-
-        function addKernelBox(kernel, isActive) {
-            if (!kernel || !kernel.bbox) return;
-
+        function drawKernel(k) {
+            if (!k || !k.bbox) return;
+            const overlay = document.getElementById('kernel-overlay');
             const box = document.createElement('div');
-            box.className = 'kernel-box' + (isActive ? ' active' : ' completed');
-            box.style.left = (kernel.bbox.x1 * 100) + '%';
-            box.style.top = (kernel.bbox.y1 * 100) + '%';
-            box.style.width = ((kernel.bbox.x2 - kernel.bbox.x1) * 100) + '%';
-            box.style.height = ((kernel.bbox.y2 - kernel.bbox.y1) * 100) + '%';
-
-            kernelOverlay.appendChild(box);
-            kernelBoxes.push(box);
-
-            if (isActive) {
-                kernelBoxes.slice(0, -1).forEach(b => {
-                    b.classList.remove('active');
-                    b.classList.add('completed');
-                });
-            }
+            box.className = 'kernel-box';
+            box.style.left = (k.bbox.x1 * 100) + '%';
+            box.style.top = (k.bbox.y1 * 100) + '%';
+            box.style.width = ((k.bbox.x2 - k.bbox.x1) * 100) + '%';
+            box.style.height = ((k.bbox.y2 - k.bbox.y1) * 100) + '%';
+            overlay.appendChild(box);
+            // Mark previous boxes as done
+            setTimeout(() => box.classList.add('done'), 1000);
         }
 
-        function clearResults() {
-            kernelOverlay.innerHTML = '';
-            kernelBoxes = [];
-            document.getElementById('quantities-tbody').innerHTML = '';
-            document.getElementById('measurements-tbody').innerHTML = '';
-            document.getElementById('notes-list').innerHTML = '';
-            document.getElementById('log-output').innerHTML = '';
-            document.getElementById('classification-card').style.display = 'none';
-            document.getElementById('compare-results').innerHTML = '';
-            document.getElementById('export-json-btn').disabled = true;
-            document.getElementById('export-csv-btn').disabled = true;
-            document.getElementById('export-excel-btn').disabled = true;
+        function finalizeResults(data) {
+            log("Analysis completed successfully.", "success");
+            btnAnalyze.disabled = false;
+            btnAnalyze.innerText = "Analysis Complete";
+            
+            document.getElementById('summary-empty').style.display = 'none';
+            document.getElementById('summary-data').style.display = 'block';
+            
+            document.getElementById('res-type').innerText = data.classification?.drawing_type || "Technical";
+            document.getElementById('res-discipline').innerText = data.classification?.discipline || "Generic";
+            document.getElementById('count-items').innerText = data.quantities?.length || 0;
+            document.getElementById('count-notes').innerText = data.notes?.length || 0;
+
+            const tbody = document.getElementById('takeoff-tbody');
+            tbody.innerHTML = '';
+            (data.quantities || []).forEach(q => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${q.description}</strong></td>
+                    <td style="text-align: right">${q.quantity}</td>
+                    <td>${q.unit}</td>
+                    <td><small>${q.category?.level1 || ""}</small></td>
+                    <td><span class="badge" style="background: ${q.confidence > 0.8 ? '#DCFCE7' : '#FEE2E2'}">${Math.round(q.confidence*100)}%</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            showToast("Success! Check the Takeoffs tab.");
         }
 
-        function log(message, type = 'info') {
-            const logOutput = document.getElementById('log-output');
+        // 6. UTILS
+        function log(msg, type = 'info') {
+            const container = document.getElementById('app-log');
             const entry = document.createElement('div');
-            entry.className = 'log-entry ' + type;
-            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            logOutput.appendChild(entry);
-            logOutput.scrollTop = logOutput.scrollHeight;
+            entry.style.color = type === 'success' ? '#15803D' : (type === 'error' ? '#B91C1C' : '#555');
+            entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
         }
 
-        function getConfidenceBadge(confidence) {
-            const val = confidence || 0;
-            let cls = 'confidence-low';
-            if (val >= 0.8) cls = 'confidence-high';
-            else if (val >= 0.5) cls = 'confidence-medium';
-            return `<span class="confidence-badge ${cls}">${(val * 100).toFixed(0)}%</span>`;
+        function showToast(msg) {
+            // Simple toast
+            const toast = document.createElement('div');
+            toast.style.cssText = "position:fixed; bottom:20px; right:20px; background:var(--brand-green); color:white; padding:10px 20px; border-radius:8px; z-index:10000; box-shadow:0 10px 30px rgba(0,0,0,0.3); animation: fadeIn 0.3s ease";
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 3000);
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Export handlers
-        document.getElementById('export-json-btn').addEventListener('click', () => {
-            if (!analysisResult) return;
-            const blob = new Blob([JSON.stringify(analysisResult, null, 2)], { type: 'application/json' });
-            downloadBlob(blob, 'analysis-result.json');
+        document.getElementById('view-takeoffs-btn').addEventListener('click', () => {
+            document.querySelector('[data-target="panel-takeoffs"]').click();
         });
 
-        document.getElementById('export-csv-btn').addEventListener('click', () => {
-            if (!analysisResult || !analysisResult.quantities) return;
-            const headers = ['Description', 'Quantity', 'Unit', 'Category L1', 'Category L2', 'Category L3', 'Confidence', 'Source Page'];
-            const rows = analysisResult.quantities.map(q => [
-                q.description || '',
-                q.quantity || 0,
-                q.unit || '',
-                q.category?.level1 || '',
-                q.category?.level2 || '',
-                q.category?.level3 || '',
-                q.confidence || 0,
-                q.source_page || 1
-            ]);
-            const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            downloadBlob(blob, 'quantities.csv');
+        // Exports
+        document.getElementById('export-json').addEventListener('click', () => {
+             if(!State.result) return;
+             const blob = new Blob([JSON.stringify(State.result, null, 2)], { type: 'application/json' });
+             const url = URL.createObjectURL(blob);
+             const a = document.createElement('a'); a.href = url; a.download = 'takeoff.json'; a.click();
         });
 
-        document.getElementById('export-excel-btn').addEventListener('click', async () => {
-            if (!analysisResult) return;
-            try {
-                const response = await fetch(`/api/analysis/${analysisId}/excel`);
-                if (!response.ok) throw new Error('Excel export failed');
-                const blob = await response.blob();
-                downloadBlob(blob, 'analysis-result.xlsx');
-            } catch (error) {
-                log('Excel export error: ' + error.message, 'error');
-                // Fallback to CSV
-                document.getElementById('export-csv-btn').click();
-            }
-        });
-
-        function downloadBlob(blob, filename) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Compare feature
-        document.getElementById('compare-file').addEventListener('change', async (e) => {
-            if (!e.target.files.length || !analysisResult) return;
-
-            const file = e.target.files[0];
-            const text = await file.text();
-            const previousResult = JSON.parse(text);
-
-            compareResults(previousResult, analysisResult);
-        });
-
-        function compareResults(prev, current) {
-            const compareDiv = document.getElementById('compare-results');
-            compareDiv.innerHTML = '';
-
-            const prevQuantities = new Map((prev.quantities || []).map(q => [q.description, q]));
-            const currQuantities = new Map((current.quantities || []).map(q => [q.description, q]));
-
-            const added = [];
-            const removed = [];
-            const changed = [];
-
-            // Find added and changed
-            for (const [desc, curr] of currQuantities) {
-                if (!prevQuantities.has(desc)) {
-                    added.push(curr);
-                } else {
-                    const prevQ = prevQuantities.get(desc);
-                    if (prevQ.quantity !== curr.quantity) {
-                        changed.push({ prev: prevQ, curr });
-                    }
-                }
-            }
-
-            // Find removed
-            for (const [desc, prev] of prevQuantities) {
-                if (!currQuantities.has(desc)) {
-                    removed.push(prev);
-                }
-            }
-
-            // Display results
-            let html = '<h5>Comparison Results</h5>';
-
-            if (added.length) {
-                html += `<div class="diff-added" style="padding: 0.5rem; margin: 0.5rem 0; border-radius: 4px;">
-                    <strong>Added (${added.length}):</strong><br>
-                    ${added.map(q => `${q.description}: ${q.quantity} ${q.unit}`).join('<br>')}
-                </div>`;
-            }
-
-            if (removed.length) {
-                html += `<div class="diff-removed" style="padding: 0.5rem; margin: 0.5rem 0; border-radius: 4px;">
-                    <strong>Removed (${removed.length}):</strong><br>
-                    ${removed.map(q => `${q.description}: ${q.quantity} ${q.unit}`).join('<br>')}
-                </div>`;
-            }
-
-            if (changed.length) {
-                html += `<div class="diff-changed" style="padding: 0.5rem; margin: 0.5rem 0; border-radius: 4px;">
-                    <strong>Changed (${changed.length}):</strong><br>
-                    ${changed.map(c => `${c.curr.description}: ${c.prev.quantity} → ${c.curr.quantity} ${c.curr.unit}`).join('<br>')}
-                </div>`;
-            }
-
-            if (!added.length && !removed.length && !changed.length) {
-                html += '<p>No differences found.</p>';
-            }
-
-            compareDiv.innerHTML = html;
-            log(`Comparison: +${added.length} -${removed.length} ~${changed.length}`, 'info');
-        }
+        init();
     </script>
 </body>
 </html>

@@ -67,6 +67,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
         provider = request.form.get("provider", "openai")
         model = request.form.get("model")
         page = request.form.get("page")
+        base_url = request.form.get("base_url")
         api_key = request.form.get("api_key") or os.environ.get(
             "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY"
         )
@@ -88,7 +89,7 @@ def create_app(config: Optional[dict] = None) -> Flask:
         # Start analysis in background
         thread = threading.Thread(
             target=_run_analysis,
-            args=(analysis_id, pdf_path, provider, api_key, model, page),
+            args=(analysis_id, pdf_path, provider, api_key, model, page, base_url),
         )
         thread.start()
 
@@ -263,6 +264,7 @@ def _run_analysis(
     api_key: str,
     model: Optional[str],
     page: Optional[str],
+    base_url: Optional[str] = None,
 ):
     """Run analysis in background thread"""
     try:
@@ -283,6 +285,7 @@ def _run_analysis(
             provider=provider,
             api_key=api_key,
             model=model,
+            base_url=base_url,
         )
 
         on_progress("initialized", {"provider": provider})

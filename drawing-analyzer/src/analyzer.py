@@ -188,6 +188,7 @@ def create_analyzer(
     provider: str = "openai",
     api_key: Optional[str] = None,
     model: Optional[str] = None,
+    base_url: Optional[str] = None,
     **kwargs,
 ) -> DrawingAnalyzer:
     """
@@ -197,6 +198,7 @@ def create_analyzer(
         provider: API provider ("openai" or "anthropic")
         api_key: API key (or use environment variable)
         model: Model to use (or use default for provider)
+        base_url: Base URL for the API (optional)
         **kwargs: Additional AnalysisConfig options
 
     Returns:
@@ -225,6 +227,7 @@ def create_analyzer(
     api_config = APIConfig(
         provider=api_provider,
         api_key=key,
+        base_url=base_url or os.environ.get("OPENAI_BASE_URL"),
         model=model or default_model,
     )
 

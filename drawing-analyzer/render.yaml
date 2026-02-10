@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: drawing-analyzer
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter  # or standard for more resources
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in dashboard
+      - key: OPENAI_API_BASE
+        sync: false
+      - key: OPENAI_MODEL
+        value: databricks-claude-haiku-4-5
+      - key: CACHE_BACKEND
+        value: sqlite
+      - key: CACHE_DIR
+        value: /app/cache
+    disk:
+      name: cache-storage
+      mountPath: /app/cache
+      sizeGB: 1
