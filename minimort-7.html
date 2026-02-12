@@ -16,7 +16,10 @@
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/milligram@1.4.1/dist/milligram.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
-  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';</script>
+  <script>
+    // Ensure worker source is set before any PDF activity
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -124,6 +127,35 @@
     .thumb.active {
       border-color: var(--green);
       background: #e7f0ee;
+    }
+
+    .thumb.processing {
+      opacity: 0.7;
+      background: #f0f0f0;
+      cursor: wait;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #eee;
+      margin-top: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--green);
+      width: 0%;
+      transition: width 0.2s;
+    }
+
+    td.text-cell {
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .thumb canvas {
@@ -274,34 +306,61 @@
 
     .tabs {
       display: flex;
-      background: #eee;
+      background: #f1f1f1;
       border-bottom: 1px solid #ccc;
+      padding: 0 8px;
     }
 
     .tab-btn {
-      padding: 8px 16px;
+      padding: 10px 16px;
       cursor: pointer;
-      border: none;
-      background: none;
+      border: none !important;
+      background: transparent !important;
       font-weight: 600;
-      color: #666;
+      color: #666 !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+      border-bottom: 3px solid transparent !important;
+      transition: all 0.2s;
+      height: auto !important;
+      font-size: 1.2rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tab-btn:hover {
+      background: rgba(0, 0, 0, 0.05) !important;
+      color: var(--green) !important;
     }
 
     .tab-btn.active {
-      background: #fff;
-      color: var(--green);
-      border-bottom: 2px solid var(--green);
+      color: var(--green) !important;
+      border-bottom: 3px solid var(--yellow) !important;
+      background: transparent !important;
     }
 
     .tab-content {
       flex: 1;
-      overflow: auto;
-      padding: 10px;
+      overflow-y: auto;
+      padding: 12px;
       display: none;
+      position: relative;
     }
 
     .tab-content.active {
       display: block;
+    }
+
+    #tab-data.active {
+      display: flex !important;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    #data-scroll {
+      flex: 1;
+      overflow: auto;
+      position: relative;
     }
 
     #actions {
@@ -309,7 +368,9 @@
       gap: 12px;
       align-items: center;
       flex-wrap: wrap;
-      margin: .25rem 0 .5rem
+      padding: 12px;
+      background: #fdfdfd;
+      border-bottom: 1px solid #eee;
     }
 
     #actions a {
@@ -331,16 +392,77 @@
       border-collapse: collapse
     }
 
-    thead {
+    /* Fixed header for Data tab */
+    #data-header-container {
       background: var(--green);
-      color: #fff
+      color: #fff;
+      z-index: 30;
+      overflow: hidden;
+      /* Header scroll synced via JS */
     }
 
-    th,
+    #data-header-container table {
+      margin-bottom: 0;
+      table-layout: fixed;
+      width: 100%;
+      min-width: 600px;
+      /* Prevent crushing columns */
+    }
+
+    #data-header-container th {
+      background: var(--green);
+      color: #fff !important;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: .6rem .4rem;
+      text-align: left;
+      font-weight: 600;
+    }
+
+    #tbl {
+      table-layout: fixed;
+      width: 100%;
+      min-width: 600px;
+      /* Match header */
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
     td {
       border: 1px solid #ddd;
       padding: .4rem;
-      vertical-align: top
+      vertical-align: top;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Standardized Column Widths for both tables */
+    .col-cb {
+      width: 35px;
+    }
+
+    .col-f {
+      width: 40px;
+    }
+
+    .col-p {
+      width: 40px;
+    }
+
+    .col-text {
+      width: auto;
+      min-width: 250px !important;
+    }
+
+    .col-labs {
+      width: 100px;
+    }
+
+    .col-coord {
+      width: 40px;
+      font-size: 0.75em;
+      color: #666;
     }
 
     .label-row {
@@ -394,30 +516,81 @@
     /* Splash Screen */
     #splash {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      inset: 0;
       background: #000;
-      color: #888;
+      color: #fff;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       z-index: 9999;
-      font-size: 2.5rem;
-      font-weight: 500;
-      transition: opacity 2s ease, visibility 2s;
+      text-align: center;
+      animation: splash-fade-out 2s forwards ease-in-out;
     }
 
-    #splash.fade {
-      opacity: 0;
-      visibility: hidden;
+    #splash>* {
+      animation: splash-text-reveal 2s forwards ease-in-out;
+    }
+
+    @keyframes splash-fade-out {
+
+      0%,
+      90% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+        visibility: hidden;
+      }
+    }
+
+    @keyframes splash-text-reveal {
+
+      0%,
+      15% {
+        opacity: 0;
+      }
+
+      40%,
+      85% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+      }
+    }
+
+    #splash h1 {
+      margin: 0;
+      font-size: 3rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    #splash p {
+      margin: 5px 0;
+      font-size: 1.2rem;
+      opacity: 0.8;
+      font-style: italic;
+    }
+
+    #splash .beta {
+      font-size: 1rem;
+      margin-top: 15px;
+      color: var(--yellow);
+      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
-  <div id="splash">power takeoff</div>
+  <div id="splash">
+    <h1>Power Takeoff</h1>
+    <p>(mini-mortifier)</p>
+    <div class="beta">beta 8</div>
+  </div>
   <div class="grid">
     <!-- Left column -->
     <aside id="filesCol">
@@ -475,24 +648,32 @@
         <div id="actions">
           <a id="csvAllLink">Save CSV (All/Visible)</a>
           <a id="csvSelectedLink">Save CSV (Selected)</a>
-          <span><a class="link" id="copySel">Copy Selected</a> · <a class="link" id="copyAll">Copy All</a></span>
+          <span><a class="link" id="copySel">Copy Selected</a> · <a class="link" id="copyTable">Copy Table</a> · <a
+              class="link" id="copyAll">Copy All</a></span>
         </div>
-        <table id="tbl">
-          <thead>
-            <tr>
-              <th><input type="checkbox" id="selectAll"></th>
-              <th>File #</th>
-              <th>Page #</th>
-              <th>Text Content</th>
-              <th>Labels/Tags</th>
-              <th>X1</th>
-              <th>Y1</th>
-              <th>X2</th>
-              <th>Y2</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <div id="data-header-container">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-cb"><input type="checkbox" id="selectAll"></th>
+                <th class="col-f">File</th>
+                <th class="col-p">Page</th>
+                <th class="col-text">Text Content</th>
+                <th class="col-labs">Labels/Tags</th>
+                <th class="col-coord">X1</th>
+                <th class="col-coord">Y1</th>
+                <th class="col-coord">X2</th>
+                <th class="col-coord">Y2</th>
+              </tr>
+            </thead>
+          </table>
+        </div>
+        <div id="data-scroll">
+          <div id="table-phantom" style="pointer-events: none; visibility: hidden;"></div>
+          <table id="tbl">
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
 
       <div id="tab-labels" class="tab-content">
@@ -520,7 +701,7 @@
 
       <div id="tab-tags" class="tab-content">
         <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-          <h5 style="margin:0">Text Tags</h5>
+          <h5 style="margin:0">Tags</h5>
           <div style="font-size: 0.9em; margin-top: 4px;">
             <a id="loadTagsLink" class="link">Upload CSV</a> ·
             <a id="exportTagsLink" class="link">Save CSV</a>
@@ -529,10 +710,9 @@
         </div>
         <div id="tagsList">
           <div class="label-row"
-            style="font-weight: bold; font-size: 0.9em; border-bottom: 1px solid #eee; padding-bottom: 4px;">
-            <div>Pattern</div>
-            <div>Tag Name</div>
-            <div>Comments</div>
+            style="grid-template-columns: 1fr 1fr 40px; font-weight: bold; font-size: 0.9em; border-bottom: 1px solid #eee; padding-bottom: 4px;">
+            <div>Tag</div>
+            <div>Description</div>
             <div></div>
           </div>
           <div id="tagsContainer"></div>
@@ -549,8 +729,10 @@
       <pre style="white-space:pre-wrap">
 • Left strip shows thumbnails for the current file (all pages). Click to jump pages. Collapse with the link; reopen with the ☰ in the top bar.
 • Draw a green rectangle; hold Alt to add multiple. Shift+click to start a polygon, click to add vertices, release Shift to close. Alt+Shift to add without replacing.
-• Click a text block to toggle “Selected”.
-• Esc clears selection. Ctrl+F exports filtered CSV. Ctrl+C copies visible text.
+• Click a text block to toggle “Selected”. Check "Select All" to toggle visibility.
+• "Copy Table" attempts to group selected items into rows for Excel pasting.
+• Esc clears selection. Ctrl+Z / Ctrl+R for Undo/Redo history.
+• Ctrl+F exports filtered CSV. Ctrl+C copies visible text.
 • Mouse wheel over the viewer zooms; right-mouse drag pans; “Fit” fits width.
 • Shift+← / Shift+→ switches files.
   </pre>
@@ -579,7 +761,101 @@
     let spaceDown = false;
     let searchTerm = '';
     const tags = [], labels = []; // labels now: {name, pattern, comments}
+    let rulesVersion = 0;
     let undoStack = [], redoStack = [];
+    let needsDraw = false;
+
+    /* RAF Draw Loop */
+    function requestDraw() { needsDraw = true; }
+    function drawLoop() {
+      if (needsDraw) {
+        drawHi();
+        drawSel();
+        needsDraw = false;
+      }
+      requestAnimationFrame(drawLoop);
+    }
+    requestAnimationFrame(drawLoop);
+
+    async function processFile(fileIdx) {
+      const f = files[fileIdx];
+      if (!f) return;
+      try {
+        console.log("Processing in main thread, Idx:", fileIdx);
+        const pdf = await pdfjsLib.getDocument({
+          data: new Uint8Array(f.ab),
+          workerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js'
+        }).promise;
+        f.pdfDoc = pdf;
+        f.totalPages = pdf.numPages;
+
+        const elements = [];
+        for (let p = 1; p <= f.totalPages; p++) {
+          const pg = await pdf.getPage(p);
+          const vp = pg.getViewport({ scale: 1 });
+          const t = await pg.getTextContent();
+
+          t.items.forEach(it => {
+            if (!it.str || !it.str.trim()) return;
+            const m1 = vp.transform;
+            const m2 = it.transform;
+            const m = [
+              m1[0] * m2[0] + m1[2] * m2[1],
+              m1[1] * m2[0] + m1[3] * m2[1],
+              m1[0] * m2[2] + m1[2] * m2[3],
+              m1[1] * m2[2] + m1[3] * m2[3],
+              m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+              m1[1] * m2[4] + m1[3] * m2[5] + m1[5]
+            ];
+            const fs = Math.sqrt(m[0] * m[0] + m[1] * m[1]);
+            const w = fs > 0 ? it.width / fs : 0;
+            const corners = [[0, -0.2], [w, -0.2], [w, 0.8], [0, 0.8]];
+            const vpts = corners.map(c => [
+              m[0] * c[0] + m[2] * c[1] + m[4],
+              m[1] * c[0] + m[3] * c[1] + m[5]
+            ]);
+            elements.push({
+              file: fileIdx, md5: f.md5, page: p, type: 'text',
+              x1: Math.min(...vpts.map(c => c[0])), y1: Math.min(...vpts.map(c => c[1])),
+              x2: Math.max(...vpts.map(c => c[0])), y2: Math.max(...vpts.map(c => c[1])),
+              text: it.str, keep: false
+            });
+          });
+
+          const ann = await pg.getAnnotations();
+          ann.forEach(a => {
+            if (!a.rect) return; const r = vp.convertToViewportRectangle(a.rect);
+            elements.push({
+              file: fileIdx, md5: f.md5, page: p, type: 'annotation',
+              x1: Math.min(r[0], r[2]), y1: Math.min(r[1], r[3]), x2: Math.max(r[0], r[2]), y2: Math.max(r[1], r[3]),
+              text: a.contents || '(annotation)', keep: false
+            });
+          });
+
+          f.progress = Math.round((p / f.totalPages) * 100);
+          refreshThumbs();
+          // Yield occasionally for UI
+          if (p % 2 === 0) await new Promise(r => setTimeout(r, 0));
+        }
+
+        f.elements = elements;
+        f.processing = false;
+        elements.forEach(el => addToGrid(fileIdx, el.page, el));
+        logEvent('file_load_complete', { name: f.name, pages: f.totalPages });
+
+        if (fileIdx === iFile) {
+          await render();
+          refill();
+        }
+        refreshThumbs();
+        pushState();
+      } catch (err) {
+        console.error("Extraction fail:", err);
+        f.processing = false;
+        f.error = "Failed: " + err.message;
+        refreshThumbs();
+      }
+    }
 
     /* Simple spatial grid per page to speed selection */
     const grids = new Map(); // key `${fileIndex}:${page}` -> {cellSize, map: Map(key -> array of element refs)}
@@ -652,6 +928,12 @@
     document.getElementById('csvAllLink').onclick = () => { logEvent('csv_export', { scope: 'visible' }); exportCSV(rowsVisible()); };
     document.getElementById('csvSelectedLink').onclick = () => { logEvent('csv_export', { scope: 'selected' }); exportCSV(rowsSelected()); };
     document.getElementById('copySel').onclick = () => { logEvent('copy_text', { scope: 'selected' }); copyText(rowsSelected()); };
+    document.getElementById('copyTable').onclick = () => {
+      logEvent('copy_table');
+      const regionsActive = (selRects.length > 0 || selPolys.length > 0);
+      const rows = regionsActive ? rowsFiltered() : rowsSelected();
+      copyTable(rows);
+    };
     document.getElementById('copyAll').onclick = () => { logEvent('copy_text', { scope: 'all' }); copyText(allRows()); };
     document.getElementById('loadTagsLink').onclick = () => document.getElementById('tagsFile').click();
     document.getElementById('tagsFile').onchange = e => { loadTagOrLabel(e.target.files[0], tags); };
@@ -771,13 +1053,13 @@
           l.pattern = e.target.value;
           try { l.re = compilePattern(l.pattern); e.target.style.borderColor = ''; }
           catch { e.target.style.borderColor = 'red'; }
-          saveLabelState(); refill();
+          rulesVersion++; saveLabelState(); refill();
         };
-        inputs[1].onchange = e => { l.name = e.target.value; saveLabelState(); refill(); };
-        inputs[2].onchange = e => { l.comments = e.target.value; saveLabelState(); refill(); };
+        inputs[1].onchange = e => { l.name = e.target.value; rulesVersion++; saveLabelState(); refill(); };
+        inputs[2].onchange = e => { l.comments = e.target.value; rulesVersion++; saveLabelState(); refill(); };
         row.querySelector('.btn-del').onclick = () => {
           labels.splice(idx, 1);
-          refreshLabelsUI(); saveLabelState(); refill();
+          rulesVersion++; refreshLabelsUI(); saveLabelState(); refill();
         };
         labelsContainer.appendChild(row);
       });
@@ -794,24 +1076,22 @@
       tags.forEach((t, idx) => {
         const row = document.createElement('div');
         row.className = 'label-row';
+        row.style.gridTemplateColumns = '1fr 1fr 40px';
         row.innerHTML = `
-          <input type="text" placeholder="Pattern" value="${esc(t.pattern)}">
-          <input type="text" placeholder="Tag Name" value="${esc(t.name)}">
-          <input type="text" placeholder="Comments" value="${esc(t.comments || '')}">
+          <input type="text" placeholder="Tag" value="${esc(t.pattern)}">
+          <input type="text" placeholder="Description" value="${esc(t.comments || '')}">
           <div class="btn-del" title="Delete">×</div>
         `;
         const inputs = row.querySelectorAll('input');
         inputs[0].onchange = e => {
           t.pattern = e.target.value;
-          try { t.re = compilePattern(t.pattern); e.target.style.borderColor = ''; }
-          catch { e.target.style.borderColor = 'red'; }
-          saveLabelState(); refill();
+          t.name = t.pattern; // For tags, name is the pattern itself
+          rulesVersion++; saveLabelState(); refill();
         };
-        inputs[1].onchange = e => { t.name = e.target.value; saveLabelState(); refill(); };
-        inputs[2].onchange = e => { t.comments = e.target.value; saveLabelState(); refill(); };
+        inputs[1].onchange = e => { t.comments = e.target.value; saveLabelState(); refill(); };
         row.querySelector('.btn-del').onclick = () => {
           tags.splice(idx, 1);
-          refreshTagsUI(); saveLabelState(); refill();
+          rulesVersion++; refreshTagsUI(); saveLabelState(); refill();
         };
         tagsContainer.appendChild(row);
       });
@@ -933,88 +1213,130 @@
       if (drawing || polyDrawing || iFile < 0) return; const p = pt(e), x = p.x / scale, y = p.y / scale;
       const hit = currentElems().filter(v => v.page === page && x >= v.x1 && x <= v.x2 && y >= v.y1 && y <= v.y2)
         .sort((a, b) => area(a) - area(b))[0];
-      if (hit) { hit.keep = !hit.keep; drawHi(); scrollRowForElem(hit); refill(true); logEvent('toggle_keep', { keep: hit.keep }); pushState(); }
+      if (hit) { hit.keep = !hit.keep; requestDraw(); scrollRowForElem(hit); refill(true); logEvent('toggle_keep', { keep: hit.keep }); pushState(); }
     });
 
     /* ===== Core ===== */
     async function loadFiles(list) {
       drop.style.display = 'none';
       for (const f of list) {
+        console.log("Loading file:", f.name);
         logEvent('file_load_start', { name: f.name, size: f.size });
         const ab = await f.arrayBuffer(), md5 = md5ab(ab);
-        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-        const N = pdf.numPages, elements = [];
-        for (let p = 1; p <= N; p++) {
-          const pg = await pdf.getPage(p), vp = pg.getViewport({ scale: 1 });
-          const t = await pg.getTextContent();
-          t.items.forEach(it => {
-            if (!it.str || !it.str.trim()) return;
-            const m = pdfjsLib.Util.transform(vp.transform, it.transform);
-            // Height in text-space is 1. Font size 'fs' is approx hypot(m[0], m[1]).
-            const fs = Math.sqrt(m[0] * m[0] + m[1] * m[1]);
-            // it.width is the rendered width at font size 'fs'. 
-            // To get width in text-space (where height=1), we must divide by fs.
-            const w = fs > 0 ? it.width / fs : 0;
-            const corners = [[0, -0.2], [w, -0.2], [w, 0.8], [0, 0.8]];
-            const vpts = corners.map(c => [
-              m[0] * c[0] + m[2] * c[1] + m[4],
-              m[1] * c[0] + m[3] * c[1] + m[5]
-            ]);
-            const x1 = Math.min(...vpts.map(c => c[0])), y1 = Math.min(...vpts.map(c => c[1]));
-            const x2 = Math.max(...vpts.map(c => c[0])), y2 = Math.max(...vpts.map(c => c[1]));
 
-            const el = { file: files.length, md5, page: p, type: 'text', x1, y1, x2, y2, text: it.str, keep: false };
-            elements.push(el); addToGrid(files.length, p, el);
-          });
-          (await pg.getAnnotations()).forEach(a => {
-            if (!a.rect) return; const r = vp.convertToViewportRectangle(a.rect);
-            const el = {
-              file: files.length, md5, page: p, type: 'annotation',
-              x1: Math.min(r[0], r[2]), y1: Math.min(r[1], r[3]), x2: Math.max(r[0], r[2]), y2: Math.max(r[1], r[3]),
-              text: a.contents || '(annotation)', keep: false
-            };
-            elements.push(el); addToGrid(files.length, p, el);
-          });
-        }
-        const thumb = await firstThumb(pdf);
-        files.push({ name: f.name, md5, pdfDoc: pdf, totalPages: N, elements, thumb });
-        logEvent('file_load_complete', { name: f.name, pages: N, md5 });
+        const fileIdx = files.length;
+        files.push({ name: f.name, md5, elements: [], processing: true, progress: 0, ab });
+        if (iFile < 0) { iFile = fileIdx; page = 1; }
+
+        refreshThumbs();
+        processFile(fileIdx);
       }
-      if (iFile < 0) await selectFile(0); else refreshThumbs();
-      refill();
-      pushState();
     }
+
     async function selectFile(idx) {
-      iFile = idx; page = 1; selRects = []; selPolys = []; livePoly = null; polyDrawing = false; await render(); refreshThumbs(); refill(); logEvent('select_file', { index: idx });
+      if (idx < 0 || idx >= files.length) return;
+      iFile = idx; page = 1; selRects = []; selPolys = []; livePoly = null; polyDrawing = false;
+      logEvent('select_file', { index: idx });
+      await render(); // Will guard internally if processing
+      refreshThumbs();
+      refill();
     }
     function refreshThumbs() {
       thumbs.innerHTML = '';
-      if (iFile < 0) return;
-      const f = files[iFile];
-      // Build page thumbnails for current file
-      for (let p = 1; p <= f.totalPages; p++) {
-        const d = document.createElement('div'); d.className = 'thumb' + (p === page ? ' active' : '');
-        const c = document.createElement('canvas'); // Grid auto-fits width
-        d.appendChild(c);
-        const n = document.createElement('div'); n.className = 'n'; n.textContent = String(p); d.appendChild(n);
-        d.onclick = () => { page = p; render(); refill(); };
+      if (files.length === 0) return;
+
+      // Section: Files
+      files.forEach((f, idx) => {
+        const d = document.createElement('div');
+        d.className = 'thumb' + (idx === iFile ? ' active' : '') + (f.processing ? ' processing' : '');
+
+        if (f.processing) {
+          d.innerHTML = `<div style="font-size:9px; text-align:center;">${esc(f.name)}</div>
+                         <div class="progress-bar"><div class="progress-fill" style="width:${f.progress}%"></div></div>`;
+        } else if (f.error) {
+          d.innerHTML = `<div style="font-size:9px; color:red; text-align:center; overflow:hidden;">Error:<br>${esc(f.error)}</div>`;
+        } else {
+          const c = document.createElement('canvas');
+          d.appendChild(c);
+          const n = document.createElement('div');
+          n.className = 'n';
+          n.textContent = f.name;
+          n.style.wordBreak = 'break-all';
+          d.appendChild(n);
+          (async () => {
+            if (!f.pdfDoc) return;
+            try {
+              const pg = await f.pdfDoc.getPage(1);
+              const bvp = pg.getViewport({ scale: 1 });
+              const s = 60 / bvp.width;
+              const vp = pg.getViewport({ scale: s });
+              c.width = vp.width; c.height = vp.height;
+              await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+            } catch (e) { }
+          })();
+        }
+        d.onclick = () => selectFile(idx);
         thumbs.appendChild(d);
-        (async () => {
-          const pg = await f.pdfDoc.getPage(p);
-          const baseVp = pg.getViewport({ scale: 1 });
-          const scale = 80 / baseVp.width; // Fixed width for thumb calculation, CSS limits display
-          const vp = pg.getViewport({ scale });
-          c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-        })();
+      });
+
+      // Section: Pages
+      if (iFile >= 0) {
+        const f = files[iFile];
+        if (!f.processing && f.pdfDoc) {
+          const hr = document.createElement('div');
+          hr.style.cssText = 'grid-column: 1/-1; height: 1px; background: #ccc; margin: 12px 0; width: 100%;';
+          thumbs.appendChild(hr);
+
+          for (let p = 1; p <= f.totalPages; p++) {
+            const d = document.createElement('div');
+            d.className = 'thumb' + (p === page ? ' active' : '');
+            const c = document.createElement('canvas');
+            const n = document.createElement('div');
+            n.className = 'n';
+            n.textContent = 'P' + p;
+            d.appendChild(c);
+            d.appendChild(n);
+            d.onclick = (e) => { e.stopPropagation(); page = p; render(); refill(); refreshThumbs(); };
+            thumbs.appendChild(d);
+
+            (async () => {
+              try {
+                const pg = await f.pdfDoc.getPage(p);
+                const bvp = pg.getViewport({ scale: 1 });
+                const s = 60 / bvp.width;
+                const vp = pg.getViewport({ scale: s });
+                c.width = vp.width; c.height = vp.height;
+                await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+              } catch (e) { }
+            })();
+          }
+        }
       }
     }
     async function render() {
-      if (iFile < 0) return; const f = files[iFile]; const pg = await f.pdfDoc.getPage(page); const vp = pg.getViewport({ scale: scale || 1 });
-      cPdf.width = vp.width; cPdf.height = vp.height; cHi.width = vp.width; cHi.height = vp.height; cSel.width = vp.width; cSel.height = vp.height;
-      await pg.render({ canvasContext: ctxPdf, viewport: vp }).promise;
-      fileNameEl.textContent = f.name || '(unnamed)';
-      pageInfoEl.textContent = `File ${iFile + 1}/${files.length} — Page ${page}/${f.totalPages}`;
-      drawHi(); drawSel(); syncZoomUI(); refreshThumbs();
+      if (iFile < 0) return;
+      const f = files[iFile];
+      if (f.processing || !f.pdfDoc) {
+        ctxPdf.clearRect(0, 0, cPdf.width, cPdf.height);
+        ctxHi.clearRect(0, 0, cHi.width, cHi.height);
+        ctxSel.clearRect(0, 0, cSel.width, cSel.height);
+        fileNameEl.textContent = f.name + " (Processing...)";
+        return;
+      }
+      try {
+        const pg = await f.pdfDoc.getPage(page);
+        const vp = pg.getViewport({ scale: scale || 1 });
+        cPdf.width = vp.width; cPdf.height = vp.height;
+        cHi.width = vp.width; cHi.height = vp.height;
+        cSel.width = vp.width; cSel.height = vp.height;
+        await pg.render({ canvasContext: ctxPdf, viewport: vp }).promise;
+        fileNameEl.textContent = f.name || '(unnamed)';
+        pageInfoEl.textContent = `File ${iFile + 1}/${files.length} — Page ${page}/${f.totalPages}`;
+        drawHi(); drawSel(); syncZoomUI(); refreshThumbs();
+        requestDraw();
+      } catch (err) {
+        console.error("Render fail:", err);
+      }
     }
     function syncZoomUI() { zoomSlider.value = String(scale.toFixed(2)); }
     function setScale(v) { const old = scale; scale = Math.max(0.2, Math.min(4, v)); if (scale !== old) { logEvent('zoom_change', { scale }); render(); } }
@@ -1022,6 +1344,7 @@
     function allRows() { return files.flatMap(f => f.elements); }
     function rowsSelected() { return allRows().filter(v => v.keep); }
     function inAnyRegion(v) {
+      if (v.file !== iFile) return false;
       // Intersection check (more robust than containment)
       const rectMatch = selRects.some(b => v.page === b.page && v.x1 <= b.x2 && v.x2 >= b.x1 && v.y1 <= b.y2 && v.y2 >= b.y1);
       if (rectMatch) return true;
@@ -1033,13 +1356,18 @@
       return false;
     }
     function rowsFiltered() {
-      // Use grid to limit candidates for rect selections; for polys fall back to page filter
+      const res = new Set();
+      // Combine results from all active shapes (Rects or Polys)
       if (selRects.length) {
-        const out = []; selRects.forEach(r => {
-          const cand = candidatesInRect(r); cand.forEach(e => { if (inAnyRegion(e) && !out.includes(e)) out.push(e); });
-        }); return out;
+        selRects.forEach(r => {
+          candidatesInRect(r).forEach(e => { if (inAnyRegion(e)) res.add(e); });
+        });
       }
-      return currentElems().filter(v => inAnyRegion(v));
+      if (selPolys.length) {
+        // Polys aren't indexed yet, so we scan current elements for page-match
+        currentElems().forEach(e => { if (inAnyRegion(e)) res.add(e); });
+      }
+      return Array.from(res);
     }
     function rowsVisible() {
       let filtered = (selRects.length || selPolys.length) ? rowsFiltered() : (files.length > 1 ? allRows() : currentElems());
@@ -1050,56 +1378,77 @@
     }
 
     /* Build table */
+    const ROW_H = 33; // Approx row height in px
     function refill(keepScroll = false) {
       const rows = rowsVisible();
       const totalCount = (files.length > 1 ? allRows().length : currentElems().length);
       searchCountEl.textContent = `${rows.length}/${totalCount}`;
 
-      const oldTop = keepScroll ? document.getElementById('tab-data').scrollTop : 0;
+      const container = document.getElementById('data-scroll');
+      const phantom = document.getElementById('table-phantom');
+      const table = document.getElementById('tbl');
+
+      phantom.style.height = (rows.length * ROW_H + 40) + 'px'; // +40 for header
+
+      const start = Math.max(0, Math.floor(container.scrollTop / ROW_H) - 5);
+      const end = Math.min(rows.length, start + Math.ceil(container.clientHeight / ROW_H) + 10);
+
       tbody.innerHTML = '';
+      // Virtual list: Move the table to the start of the visible row block.
+      table.style.transform = `translateY(${start * ROW_H}px)`;
+      tbody.style.transform = 'none';
 
-      // Limit DOM rows for performance, but show all if small
-      const limit = 500;
-      const toShow = rows.slice(0, limit);
-
-      toShow.forEach(v => {
+      const toShow = rows.slice(start, end);
+      toShow.forEach((v, i) => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td><input type="checkbox"${v.keep ? ' checked' : ''}></td>
-      <td>${v.file + 1}</td><td>${v.page}</td><td>${esc(v.text)}</td>
-      <td>${labelNames(v).join('; ')}</td>
-      <td>${n(v.x1)}</td><td>${n(v.y1)}</td><td>${n(v.x2)}</td><td>${n(v.y2)}</td>`;
-        tr.querySelector('input').onchange = e => { v.keep = e.target.checked; drawHi(); pushState(); }
-        tr.addEventListener('click', e => { if (e.target.tagName !== 'INPUT') { v.keep = !v.keep; tr.querySelector('input').checked = v.keep; drawHi(); pushState(); } });
+        tr.style.height = ROW_H + 'px';
+        tr.innerHTML = `<td class="col-cb"><input type="checkbox"${v.keep ? ' checked' : ''}></td>
+          <td class="col-f">${v.file + 1}</td>
+          <td class="col-p">${v.page}</td>
+          <td class="col-text text-cell">${esc(v.text)}</td>
+          <td class="col-labs">${labelNames(v).join('; ')}</td>
+          <td class="col-coord">${n(v.x1)}</td>
+          <td class="col-coord">${n(v.y1)}</td>
+          <td class="col-coord">${n(v.x2)}</td>
+          <td class="col-coord">${n(v.y2)}</td>`;
+        tr.querySelector('input').onchange = e => { v.keep = e.target.checked; requestDraw(); pushState(); }
+        tr.addEventListener('click', e => { if (e.target.tagName !== 'INPUT') { v.keep = !v.keep; tr.querySelector('input').checked = v.keep; requestDraw(); pushState(); } });
         tbody.appendChild(tr);
       });
-
-      if (rows.length > limit) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="10" style="text-align:center; color:#888;">... showing first ${limit} of ${rows.length} rows (use filters to narrow down) ...</td>`;
-        tbody.appendChild(tr);
-      }
-
-      if (keepScroll) document.getElementById('tab-data').scrollTop = oldTop;
     }
+
+    document.getElementById('data-scroll').onscroll = () => {
+      refill(true);
+      // Sync header scroll
+      document.getElementById('data-header-container').scrollLeft = document.getElementById('data-scroll').scrollLeft;
+    };
 
     function scrollRowForElem(elem) {
       const rows = rowsVisible();
       const idx = rows.indexOf(elem);
       if (idx === -1) return;
-      const tr = tbody.children[idx];
-      if (tr) { tr.scrollIntoView({ block: 'nearest' }); tr.classList.add('flash'); setTimeout(() => tr.classList.remove('flash'), 600); }
+      document.getElementById('data-scroll').scrollTop = idx * ROW_H;
+      // We can't easily flash because the element might be newly created, 
+      // but refill will handle the jump.
     }
 
     /* Labels & tags */
     function labelNames(v) {
+      if (v.ruleVersion === rulesVersion && v.ruleCache) return v.ruleCache;
       const out = [];
-      tags.forEach(t => t.re && t.re.test(v.text) && out.push(t.name));
+      const vText = v.text.trim();
+      tags.forEach(t => {
+        if (vText === t.pattern.trim()) out.push('tag:' + t.pattern);
+      });
       labels.forEach(l => l.re && l.re.test(v.text) && out.push(l.name));
+      v.ruleVersion = rulesVersion;
+      v.ruleCache = out;
       return out;
     }
 
     /* Drawing */
     function drawHi() {
+      if (!ctxHi) return;
       ctxHi.clearRect(0, 0, cHi.width, cHi.height);
       currentElems().forEach(v => {
         if (v.page !== page || !v.keep) return;
@@ -1170,6 +1519,35 @@
       a.download = 'extracted.csv'; a.click();
     }
     async function copyText(rows) { const t = rows.map(r => r.text).join('\n'); if (t) await navigator.clipboard.writeText(t); }
+    async function copyTable(rows) {
+      if (!rows.length) return;
+      // Sort primarily by order of selection/discovery isn't great for tables,
+      // so we sort by Page -> Y (row) -> X (column).
+      const sorted = [...rows].sort((a, b) => a.page - b.page || (Math.round(a.y1 / 4) - Math.round(b.y1 / 4)) || a.x1 - b.x1);
+
+      const lines = [];
+      let currentRow = [];
+      let lastY = -1;
+      let lastPage = -1;
+
+      sorted.forEach(v => {
+        // Use a 5px threshold for "same row"
+        if (v.page !== lastPage || Math.abs(v.y1 - lastY) > 5) {
+          if (currentRow.length > 0) lines.push(currentRow.join('\t'));
+          currentRow = [];
+          lastY = v.y1;
+          lastPage = v.page;
+        }
+        currentRow.push(v.text);
+      });
+      if (currentRow.length > 0) lines.push(currentRow.join('\t'));
+
+      const t = lines.join('\n');
+      if (t) {
+        await navigator.clipboard.writeText(t);
+        logEvent('copy_table_success', { rows: lines.length });
+      }
+    }
 
     /* Patterns: tags simple loader (name,regex on each line) */
     function loadTagOrLabel(file, arr) {
@@ -1199,7 +1577,7 @@
             try { arr.push({ name, pattern: pat, re: compilePattern(pat), comments: '' }); } catch { }
           });
         }
-        saveLabelState(); refreshLabelsUI(); refreshTagsUI(); refill(); logEvent('load_rules', { count: arr.length });
+        rulesVersion++; saveLabelState(); refreshLabelsUI(); refreshTagsUI(); refill(); logEvent('load_rules', { count: arr.length });
       };
       r.readAsText(file);
     }
@@ -1300,11 +1678,6 @@
     window.addEventListener('keyup', e => { if (e.key === ' ') spaceDown = false; });
 
     /* Utils */
-    async function firstThumb(pdf) {
-      const p = await pdf.getPage(1), vp = p.getViewport({ scale: .22 });
-      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
-      await p.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; return c.toDataURL('image/png');
-    }
     function pt(e) { const r = cSel.getBoundingClientRect(); return { x: (e.clientX - r.left) * (cSel.width / r.width), y: (e.clientY - r.top) * (cSel.height / r.height) } }
     function esc(s) { return (s ?? '').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) }
     function n(v) { return Math.round(v) }
