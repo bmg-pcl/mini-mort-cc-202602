@@ -1,0 +1,77 @@
+---
+name: architectural_plan
+drawing_types:
+- floor_plan
+- plan
+- architectural_plan
+- reflected_ceiling_plan
+disciplines:
+- architectural
+description: Analyzes architectural floor plans and RCPs
+capabilities:
+- quantity_takeoff
+- measurement
+- notes_extraction
+- symbol_recognition
+priority: 15
+---
+
+Analyze this architectural floor plan region.
+
+Focus on identifying and extracting:
+
+1. DOORS:
+   - Door number/mark
+   - Size (width x height)
+   - Type (single, double, sliding, etc.)
+   - Frame type
+   - Hardware group
+   - Fire rating
+
+2. WINDOWS:
+   - Window mark/type
+   - Size (width x height)
+   - Sill height
+   - Frame material
+   - Glazing type
+
+3. WALLS:
+   - Wall type designations
+   - Wall thickness
+   - Fire ratings
+   - Partition types
+   - Wall heights (if noted)
+
+4. ROOMS:
+   - Room numbers
+   - Room names
+   - Square footage
+   - Finish codes
+   - Ceiling heights
+
+5. CASEWORK & MILLWORK:
+   - Cabinet types
+   - Countertop materials
+   - Millwork items
+   - Built-in furniture
+
+6. FINISHES:
+   - Floor finish tags
+   - Wall finish tags
+   - Ceiling finish tags
+   - Base type
+
+7. FIXTURES:
+   - Plumbing fixtures (referenced)
+   - Specialty equipment
+   - Access panels
+
+For each element, extract:
+- Type/mark
+- Size/dimensions
+- Quantity
+- Room location
+- Schedule reference
+
+Respond with JSON in the standard format.
+Use CSI Divisions 06 (Wood), 08 (Openings), 09 (Finishes) codes where applicable.

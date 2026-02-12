@@ -1,0 +1,2 @@
+[console_scripts]
+drawing-analyzer = src.cli:main
