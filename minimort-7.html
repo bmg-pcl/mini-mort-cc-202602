@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8" />
-<title>PDF Tool • Multi-file • Region & Polygon Filter</title>
 
-<!-- ===== Config (JSON) ===== -->
-<script type="application/json" id="app-config">
+<head>
+  <meta charset="utf-8" />
+  <title>PDF Tool • Multi-file • Region & Polygon Filter</title>
+
+  <!-- ===== Config (JSON) ===== -->
+  <script type="application/json" id="app-config">
 {
   "highlightColor": "rgba(0,128,0,0.35)",
   "regionColor": { "fill": "rgba(0,128,0,0.25)", "stroke": "rgba(0,128,0,0.9)" },
@@ -13,121 +14,539 @@
 }
 </script>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/milligram@1.4.1/dist/milligram.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
-<script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';</script>
-<style>
-  :root{ --green:#203731; --yellow:#FFB612; }
-  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Barlow Condensed',sans-serif}
-  .grid{display:grid;grid-template-columns:auto 6px 1fr 6px 28%;grid-template-rows:100vh;overflow:hidden}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/milligram@1.4.1/dist/milligram.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.worker.min.js';</script>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #203731;
+      --yellow: #FFB612;
+      --left-w: 75px;
+      --right-w: 28%;
+    }
 
-  /* Left thumbs column */
-  #filesCol{width:75px;min-width:0;background:#f6f6f6;border-right:1px solid #ccc;display:flex;flex-direction:column;align-items:center;padding:6px 4px;gap:6px;overflow:hidden;transition:width .25s ease}
-  #leftTop{display:flex;gap:8px;align-items:center}
-  #toggleLeftLink,#btnUploadLink{color:var(--green);cursor:pointer;text-decoration:underline}
-  #thumbs{overflow:auto;width:100%;padding-top:4px}
-  .thumb{cursor:pointer;border:2px solid transparent;border-radius:6px;padding:2px;margin:4px 2px;display:flex;flex-direction:column;align-items:center}
-  .thumb.active{border-color:var(--green);background:#e7f0ee}
-  .thumb canvas{display:block;background:#ddd;border-radius:3px}
-  .thumb .n{font-size:10px;text-align:center;color:#000}
+    /* Override Milligram Purple with Packers Green */
+    .button,
+    button {
+      background-color: var(--green) !important;
+      border-color: var(--green) !important;
+      color: #fff !important;
+    }
 
-  .sep{width:6px;background:#ccc;cursor:col-resize}
+    .button:hover,
+    button:hover {
+      background-color: #2a4a41 !important;
+      border-color: #2a4a41 !important;
+    }
 
-  /* Viewer */
-  #viewerCol{position:relative;display:flex;flex-direction:column;border-right:1px solid #ccc}
-  #bar{display:flex;gap:.5rem;align-items:center;padding:.5rem;background:#f8f8f8;border-bottom:1px solid #ccc}
-  #bar .sm{font-size:.8em;padding:.2rem .4rem;background:var(--green);color:#fff;border:none;border-radius:6px}
-  #menuBtn{display:none;background:var(--green);color:#fff;border:none;padding:.25rem .5rem;border-radius:6px}
-  #zoomSlider{width:220px}
-  #navPrev,#navNext{color:var(--green);cursor:pointer;text-decoration:underline}
-  #info{margin-left:auto;color:#000;display:flex;gap:.4rem;align-items:center}
-  #fileName{max-width:32ch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#000}
-  #help{margin-left:.25rem;cursor:pointer}
-  #view{flex:1;position:relative;overflow:auto;background:#ddd}
-  #pdf,#hi,#sel{position:absolute;left:0;top:0}
-  #hi{pointer-events:none}
-  #sel{pointer-events:auto;z-index:2}
+    .button.button-outline,
+    button.button-outline {
+      color: var(--green) !important;
+      border-color: var(--green) !important;
+      background-color: transparent !important;
+    }
 
-  /* Right panel as links-only */
-  #rightCol{background:#fff;padding:10px;overflow:auto;font-size:.85em;color:#000}
-  #actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:.25rem 0 .5rem}
-  #actions a{color:var(--green);cursor:pointer;text-decoration:underline}
-  #csvAllLink{background:var(--yellow);padding:2px 6px;border-radius:4px;color:#000;text-decoration:none}
-  table{width:100%;border-collapse:collapse}
-  thead{background:var(--green);color:#fff}
-  th,td{border:1px solid #ddd;padding:.4rem;vertical-align:top}
-  .flash{animation:flash .6s} @keyframes flash{0%{background:#fff2a8}100%{background:transparent}}
+    a {
+      color: var(--green);
+    }
 
-  /* Help modal */
-  #modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);align-items:center;justify-content:center}
-  #modal .card{background:#fff;max-width:720px;max-height:80%;overflow:auto;padding:12px;border-radius:8px}
-</style>
+    input[type='text']:focus,
+    input[type='password']:focus,
+    input[type='email']:focus,
+    input[type='number']:focus,
+    input[type='url']:focus,
+    input[type='tel']:focus,
+    input[type='search']:focus,
+    textarea:focus,
+    select:focus {
+      border-color: var(--green) !important;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Barlow', system-ui, -apple-system, sans-serif
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: var(--left-w) 6px 1fr 6px var(--right-w);
+      grid-template-rows: 100vh;
+      overflow: hidden
+    }
+
+    /* Left thumbs column */
+    #filesCol {
+      width: 100%;
+      min-width: 0;
+      background: #f6f6f6;
+      border-right: 1px solid #ccc;
+      display: flex;
+      flex-direction: column;
+      padding: 6px 4px;
+      gap: 6px;
+      overflow: hidden;
+      transition: width .25s ease
+    }
+
+    #leftTop {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    #thumbs {
+      overflow: auto;
+      width: 100%;
+      padding-top: 4px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: 8px;
+      justify-items: center;
+    }
+
+    .thumb {
+      cursor: pointer;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 80px;
+    }
+
+    .thumb.active {
+      border-color: var(--green);
+      background: #e7f0ee;
+    }
+
+    .thumb canvas {
+      display: block;
+      background: #ddd;
+      border-radius: 3px;
+      max-width: 100%;
+      height: auto !important;
+    }
+
+    .thumb .n {
+      font-size: 10px;
+      text-align: center;
+      color: #000
+    }
+
+    .sep {
+      width: 6px;
+      background: #ccc;
+      cursor: col-resize
+    }
+
+    /* Viewer */
+    #viewerCol {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #ccc
+    }
+
+    #bar {
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+      padding: .5rem;
+      background: #f8f8f8;
+      border-bottom: 1px solid #ccc
+    }
+
+    #bar .sm {
+      font-size: .8em;
+      padding: .2rem .4rem;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: 6px
+    }
+
+    #menuBtn {
+      display: none;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      padding: .25rem .5rem;
+      border-radius: 6px
+    }
+
+    #zoomSlider {
+      width: 120px
+    }
+
+    #awesomeBar {
+      flex: 1;
+      max-width: 400px;
+      position: relative;
+    }
+
+    #searchBar {
+      width: 100%;
+      margin: 0;
+      height: 2.8rem;
+      padding: 0 3rem 0 1rem;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+    }
+
+    #searchCount {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.8em;
+      color: #666;
+    }
+
+    #navPrev,
+    #navNext {
+      color: var(--green);
+      cursor: pointer;
+      text-decoration: underline
+    }
+
+    #info {
+      margin-left: auto;
+      color: #000;
+      display: flex;
+      gap: .4rem;
+      align-items: center
+    }
+
+    #fileName {
+      max-width: 32ch;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #000
+    }
+
+    #help {
+      margin-left: .25rem;
+      cursor: pointer
+    }
+
+    #view {
+      flex: 1;
+      position: relative;
+      overflow: auto;
+      background: #ddd
+    }
+
+    #pdf,
+    #hi,
+    #sel {
+      position: absolute;
+      left: 0;
+      top: 0
+    }
+
+    #hi {
+      pointer-events: none
+    }
+
+    #sel {
+      pointer-events: auto;
+      z-index: 2
+    }
+
+    /* Right panel Layout */
+    #rightCol {
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: .85em;
+      color: #000;
+      padding: 0;
+    }
+
+    .tabs {
+      display: flex;
+      background: #eee;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .tab-btn {
+      padding: 8px 16px;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-weight: 600;
+      color: #666;
+    }
+
+    .tab-btn.active {
+      background: #fff;
+      color: var(--green);
+      border-bottom: 2px solid var(--green);
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow: auto;
+      padding: 10px;
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    #actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: .25rem 0 .5rem
+    }
+
+    #actions a {
+      color: var(--green);
+      cursor: pointer;
+      text-decoration: underline
+    }
+
+    #csvAllLink {
+      background: var(--yellow);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #000;
+      text-decoration: none
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    thead {
+      background: var(--green);
+      color: #fff
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: .4rem;
+      vertical-align: top
+    }
+
+    .label-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 40px;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+      padding: 4px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .label-row:hover {
+      background: #f9f9f9;
+    }
+
+    .label-row input {
+      margin-bottom: 0;
+      height: 3rem;
+      font-size: 0.9em;
+    }
+
+    .btn-del {
+      color: #999;
+      cursor: pointer;
+      font-size: 1.5rem;
+      text-align: center;
+      line-height: 1;
+      padding-bottom: 4px;
+    }
+
+    .btn-del:hover {
+      color: #d33;
+    }
+
+    .flash {
+      animation: flash .6s
+    }
+
+    @keyframes flash {
+      0% {
+        background: #fff2a8
+      }
+
+      100% {
+        background: transparent
+      }
+    }
+
+    /* Splash Screen */
+    #splash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: #888;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-size: 2.5rem;
+      font-weight: 500;
+      transition: opacity 2s ease, visibility 2s;
+    }
+
+    #splash.fade {
+      opacity: 0;
+      visibility: hidden;
+    }
+  </style>
 </head>
+
 <body>
-<div class="grid">
-  <!-- Left column -->
-  <aside id="filesCol">
-    <div id="leftTop">
-      <a id="toggleLeftLink" title="Collapse/Expand">Collapse</a>
-      <a id="btnUploadLink" title="Upload PDFs">Upload</a>
-      <input id="fileInput" type="file" accept="application/pdf" multiple hidden>
-    </div>
-    <div id="thumbs"></div>
-  </aside>
-  <div id="splitL" class="sep" title="Resize left panel"></div>
-
-  <!-- Viewer -->
-  <section id="viewerCol">
-    <div id="bar">
-      <button id="menuBtn" title="Show Left Panel">☰</button>
-      <a id="navPrev">« Prev</a>
-      <a id="navNext">Next »</a>
-      <button id="fit" class="sm">Fit</button>
-      <button id="zoomOut" class="sm">−</button>
-      <input id="zoomSlider" type="range" min="0.2" max="4" step="0.02" value="1">
-      <button id="zoomIn" class="sm">+</button>
-      <span id="info">
-        <span id="fileName"></span>
-        <span id="pageInfo"></span>
-      </span>
-      <span id="help">❔</span>
-    </div>
-    <div id="view" tabindex="0">
-      <div id="drop">
-        <h4>Upload PDFs (or drag & drop)</h4>
-        <p>Multi-file thumbnails appear on the left.</p>
+  <div id="splash">power takeoff</div>
+  <div class="grid">
+    <!-- Left column -->
+    <aside id="filesCol">
+      <div id="leftTop">
+        <a id="toggleLeftLink" title="Collapse/Expand">Collapse</a>
+        <a id="btnUploadLink" title="Upload PDFs">Upload</a>
+        <input id="fileInput" type="file" accept="application/pdf" multiple hidden>
       </div>
-      <canvas id="pdf"></canvas>
-      <canvas id="hi"></canvas>
-      <canvas id="sel"></canvas>
-    </div>
-  </section>
+      <div id="thumbs"></div>
+    </aside>
+    <div id="splitL" class="sep" title="Resize left panel"></div>
 
-  <div id="splitR" class="sep" title="Resize right panel"></div>
+    <!-- Viewer -->
+    <section id="viewerCol">
+      <div id="bar">
+        <button id="menuBtn" title="Show Left Panel">☰</button>
+        <a id="navPrev">« Prev</a>
+        <a id="navNext">Next »</a>
+        <button id="fit" class="sm">Fit</button>
+        <button id="zoomOut" class="sm">−</button>
+        <input id="zoomSlider" type="range" min="0.2" max="4" step="0.02" value="1">
+        <button id="zoomIn" class="sm">+</button>
+        <div id="awesomeBar">
+          <input id="searchBar" type="text" placeholder="Search elements...">
+          <span id="searchCount">0/0</span>
+        </div>
+        <span id="info">
+          <span id="fileName"></span>
+          <span id="pageInfo"></span>
+        </span>
+        <span id="help">❔</span>
+      </div>
+      <div id="view" tabindex="0">
+        <div id="drop">
+          <h4>Upload PDFs (or drag & drop)</h4>
+          <p>Multi-file thumbnails appear on the left.</p>
+        </div>
+        <canvas id="pdf"></canvas>
+        <canvas id="hi"></canvas>
+        <canvas id="sel"></canvas>
+      </div>
+    </section>
 
-  <!-- Right column -->
-  <aside id="rightCol">
-    <div id="actions">
-      <a id="csvAllLink">Save CSV (All/Visible)</a>
-      <a id="csvFilteredLink">Save CSV (Filtered)</a>
-      <span><a class="link" id="copySel">Copy Selected</a> · <a class="link" id="copyAll">Copy All</a></span>
-      <a id="loadTagsLink" class="link">Load Tag List</a><input id="tagsFile" type="file" accept=".csv,.txt" hidden>
-      <a id="loadLabelsLink" class="link">Load Label CSV</a><input id="labelsFile" type="file" accept=".csv" hidden>
-      <a id="dlLabelTplLink" class="link">Download Label CSV</a>
-    </div>
-    <table id="tbl">
-      <thead><tr>
-        <th>Selected</th><th>File #</th><th>Page #</th><th>Text Content</th><th>Labels</th><th>X1</th><th>Y1</th><th>X2</th><th>Y2</th>
-      </tr></thead>
-      <tbody></tbody>
-    </table>
-  </aside>
-</div>
+    <div id="splitR" class="sep" title="Resize right panel"></div>
 
-<!-- Help / README -->
-<div id="modal"><div class="card">
-  <h4>How to Use</h4>
-  <pre style="white-space:pre-wrap">
+    <!-- Right column -->
+    <aside id="rightCol">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="tab-data">Data</button>
+        <button class="tab-btn" data-tab="tab-labels">Labels</button>
+        <button class="tab-btn" data-tab="tab-tags">Tags</button>
+      </div>
+
+      <div id="tab-data" class="tab-content active">
+        <div id="actions">
+          <a id="csvAllLink">Save CSV (All/Visible)</a>
+          <a id="csvSelectedLink">Save CSV (Selected)</a>
+          <span><a class="link" id="copySel">Copy Selected</a> · <a class="link" id="copyAll">Copy All</a></span>
+        </div>
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="selectAll"></th>
+              <th>File #</th>
+              <th>Page #</th>
+              <th>Text Content</th>
+              <th>Labels/Tags</th>
+              <th>X1</th>
+              <th>Y1</th>
+              <th>X2</th>
+              <th>Y2</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="tab-labels" class="tab-content">
+        <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+          <h5 style="margin:0">Regex Rules</h5>
+          <div style="font-size: 0.9em; margin-top: 4px;">
+            <a id="loadLabelsLink" class="link">Upload CSV</a> ·
+            <a id="exportLabelsLink" class="link">Save CSV</a> ·
+            <a id="dlLabelTplLink" class="link">Get Template</a>
+            <input id="labelsFile" type="file" accept=".csv" hidden>
+          </div>
+        </div>
+        <div id="labelsList">
+          <div class="label-row"
+            style="font-weight: bold; font-size: 0.9em; border-bottom: 1px solid #eee; padding-bottom: 4px;">
+            <div>Pattern</div>
+            <div>Label</div>
+            <div>Comments</div>
+            <div></div>
+          </div>
+          <div id="labelsContainer"></div>
+        </div>
+        <button class="sm" id="addLabelBtn" style="margin-top: 10px; width: 100%;">+ Add Rule</button>
+      </div>
+
+      <div id="tab-tags" class="tab-content">
+        <div style="margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+          <h5 style="margin:0">Text Tags</h5>
+          <div style="font-size: 0.9em; margin-top: 4px;">
+            <a id="loadTagsLink" class="link">Upload CSV</a> ·
+            <a id="exportTagsLink" class="link">Save CSV</a>
+            <input id="tagsFile" type="file" accept=".csv,.txt" hidden>
+          </div>
+        </div>
+        <div id="tagsList">
+          <div class="label-row"
+            style="font-weight: bold; font-size: 0.9em; border-bottom: 1px solid #eee; padding-bottom: 4px;">
+            <div>Pattern</div>
+            <div>Tag Name</div>
+            <div>Comments</div>
+            <div></div>
+          </div>
+          <div id="tagsContainer"></div>
+        </div>
+        <button class="sm" id="addTagBtn" style="margin-top: 10px; width: 100%;">+ Add Tag</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Help / README -->
+  <div id="modal">
+    <div class="card">
+      <h4>How to Use</h4>
+      <pre style="white-space:pre-wrap">
 • Left strip shows thumbnails for the current file (all pages). Click to jump pages. Collapse with the link; reopen with the ☰ in the top bar.
 • Draw a green rectangle; hold Alt to add multiple. Shift+click to start a polygon, click to add vertices, release Shift to close. Alt+Shift to add without replacing.
 • Click a text block to toggle “Selected”.
@@ -135,525 +554,808 @@
 • Mouse wheel over the viewer zooms; right-mouse drag pans; “Fit” fits width.
 • Shift+← / Shift+→ switches files.
   </pre>
-  <button id="closeHelp">Close</button>
-</div></div>
+      <button id="closeHelp">Close</button>
+    </div>
+  </div>
 
-<script>
-/* ===== Config ===== */
-const CONFIG = (()=>{ try{ return JSON.parse(document.getElementById('app-config').textContent) }catch{ return {} }})();
-const HIGHLIGHT_COLOR = CONFIG.highlightColor || 'rgba(0,128,0,0.35)';
-const REGION_FILL = (CONFIG.regionColor && CONFIG.regionColor.fill) || 'rgba(0,128,0,0.25)';
-const REGION_STROKE = (CONFIG.regionColor && CONFIG.regionColor.stroke) || 'rgba(0,128,0,0.9)';
-const THUMB_W = CONFIG.thumbWidth || 56;
+  <script>
+    /* ===== Config ===== */
+    const CONFIG = (() => { try { return JSON.parse(document.getElementById('app-config').textContent) } catch { return {} } })();
+    const HIGHLIGHT_COLOR = CONFIG.highlightColor || 'rgba(0,128,0,0.35)';
+    const REGION_FILL = (CONFIG.regionColor && CONFIG.regionColor.fill) || 'rgba(0,128,0,0.25)';
+    const REGION_STROKE = (CONFIG.regionColor && CONFIG.regionColor.stroke) || 'rgba(0,128,0,0.9)';
+    const THUMB_W = CONFIG.thumbWidth || 56;
 
-/* ===== Event logging scaffold ===== */
-function logEvent(type,payload={}){ console.log('[event]', {type, ts:new Date().toISOString(), ...payload}); }
+    /* ===== Event logging scaffold ===== */
+    function logEvent(type, payload = {}) { console.log('[event]', { type, ts: new Date().toISOString(), ...payload }); }
 
-/* ===== State ===== */
-let files=[]; // {name,md5,pdfDoc,totalPages,elements,thumb}
-let iFile=-1, page=1, scale=1;
-let selRects=[];               // [{page,x1,y1,x2,y2}]
-let selPolys=[];               // [{page,points:[{x,y},...] }]
-let drawing=false, liveRect=null, addMode=false;
-let polyDrawing=false, livePoly=null, lastMouse=null; // polygon temp state
-const tags=[], labels=[];
+    /* ===== State ===== */
+    let files = []; // {name,md5,pdfDoc,totalPages,elements,thumb}
+    let iFile = -1, page = 1, scale = 1;
+    let selRects = [];               // [{page,x1,y1,x2,y2}]
+    let selPolys = [];               // [{page,points:[{x,y},...] }]
+    let drawing = false, startPt = null, liveRect = null, addMode = false;
+    let polyDrawing = false, livePoly = null, lastMouse = null; // polygon temp state
+    let spaceDown = false;
+    let searchTerm = '';
+    const tags = [], labels = []; // labels now: {name, pattern, comments}
+    let undoStack = [], redoStack = [];
 
-/* Simple spatial grid per page to speed selection */
-const grids=new Map(); // key `${fileIndex}:${page}` -> {cellSize, map: Map(key -> array of element refs)}
-const CELL=64; // px at scale=1
-function gridKey(x,y){ return ((x/CELL)|0)+','+((y/CELL)|0); }
-function ensureGrid(fileIndex,page){ const k=`${fileIndex}:${page}`; if(!grids.has(k)) grids.set(k,{cellSize:CELL,map:new Map()}); return grids.get(k); }
-function addToGrid(fileIndex,page,elem){ const g=ensureGrid(fileIndex,page); const k=gridKey(elem.x1,elem.y1); const arr=g.map.get(k)||[]; arr.push(elem); g.map.set(k,arr); }
-function candidatesInRect(rect){
-  const g=ensureGrid(iFile,rect.page); const res=new Set();
-  const x0=(rect.x1|0), y0=(rect.y1|0), x1=(rect.x2|0), y1=(rect.y2|0);
-  for(let gx=((x0/CELL)|0); gx<=((x1/CELL)|0); gx++){
-    for(let gy=((y0/CELL)|0); gy<=((y1/CELL)|0); gy++){
-      const arr=g.map.get(gx+','+gy); if(arr) arr.forEach(e=>res.add(e));
+    /* Simple spatial grid per page to speed selection */
+    const grids = new Map(); // key `${fileIndex}:${page}` -> {cellSize, map: Map(key -> array of element refs)}
+    const CELL = 64; // px at scale=1
+    function gridKey(x, y) { return Math.floor(x / CELL) + ',' + Math.floor(y / CELL); }
+    function ensureGrid(fileIndex, page) { const k = `${fileIndex}:${page}`; if (!grids.has(k)) grids.set(k, { cellSize: CELL, map: new Map() }); return grids.get(k); }
+    function addToGrid(fileIndex, page, elem) {
+      const g = ensureGrid(fileIndex, page);
+      const x1 = Math.floor(elem.x1 / CELL), y1 = Math.floor(elem.y1 / CELL);
+      const x2 = Math.floor(elem.x2 / CELL), y2 = Math.floor(elem.y2 / CELL);
+      for (let x = x1; x <= x2; x++) {
+        for (let y = y1; y <= y2; y++) {
+          const k = x + ',' + y; const arr = g.map.get(k) || []; arr.push(elem); g.map.set(k, arr);
+        }
+      }
     }
-  }
-  return Array.from(res);
-}
+    function candidatesInRect(rect) {
+      const g = ensureGrid(iFile, rect.page); const res = new Set();
+      const x0 = Math.floor(rect.x1 / CELL), y0 = Math.floor(rect.y1 / CELL);
+      const x1 = Math.floor(rect.x2 / CELL), y1 = Math.floor(rect.y2 / CELL);
+      for (let gx = x0; gx <= x1; gx++) {
+        for (let gy = y0; gy <= y1; gy++) {
+          const arr = g.map.get(gx + ',' + gy); if (arr) arr.forEach(e => res.add(e));
+        }
+      }
+      return Array.from(res);
+    }
 
-/* ===== DOM ===== */
-const cPdf=document.getElementById('pdf'), ctxPdf=cPdf.getContext('2d');
-const cHi=document.getElementById('hi'), ctxHi=cHi.getContext('2d');
-const cSel=document.getElementById('sel'), ctxSel=cSel.getContext('2d');
-const thumbs=document.getElementById('thumbs');
-const fileNameEl=document.getElementById('fileName');
-const pageInfoEl=document.getElementById('pageInfo');
-const tbody=document.querySelector('#tbl tbody');
-const zoomSlider=document.getElementById('zoomSlider');
-const viewEl=document.getElementById('view');
-const menuBtn=document.getElementById('menuBtn');
+    /* ===== DOM ===== */
+    const cPdf = document.getElementById('pdf'), ctxPdf = cPdf.getContext('2d');
+    const cHi = document.getElementById('hi'), ctxHi = cHi.getContext('2d');
+    const cSel = document.getElementById('sel'), ctxSel = cSel.getContext('2d');
+    const thumbs = document.getElementById('thumbs');
+    const fileNameEl = document.getElementById('fileName');
+    const pageInfoEl = document.getElementById('pageInfo');
+    const tbody = document.querySelector('#tbl tbody');
+    const zoomSlider = document.getElementById('zoomSlider');
+    const viewEl = document.getElementById('view');
+    const menuBtn = document.getElementById('menuBtn');
 
-/* ===== Persist tags/labels in LocalStorage ===== */
-const STORAGE_KEY='pdfToolLabelRegexes';
-function saveLabelState(){
-  const toJSON=(arr)=>arr.map(x=>({name:x.name, pattern:x.re.source, flags:(x.re.flags||'i')}));
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({tags:toJSON(tags), labels:toJSON(labels)})); }catch{}
-}
-function loadLabelState(){
-  try{
-    const s=localStorage.getItem(STORAGE_KEY); if(!s) return; const obj=JSON.parse(s);
-    if(obj.tags) obj.tags.forEach(t=>{ try{ tags.push({name:t.name, re:new RegExp(t.pattern,t.flags||'i')}); }catch{} });
-    if(obj.labels) obj.labels.forEach(l=>{ try{ labels.push({name:l.name, re:new RegExp(l.pattern,l.flags||'i')}); }catch{} });
-  }catch{}
-}
-loadLabelState();
+    /* ===== Persist tags/labels in LocalStorage ===== */
+    const STORAGE_KEY = 'pdfToolLabelRegexes';
+    function saveLabelState() {
+      const toJSON = (arr) => arr.map(x => ({ name: x.name, pattern: x.pattern, comments: x.comments || '' }));
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ tags: toJSON(tags), labels: toJSON(labels) })); } catch { }
+    }
+    function loadLabelState() {
+      try {
+        const s = localStorage.getItem(STORAGE_KEY); if (!s) return; const obj = JSON.parse(s);
+        if (obj.tags) obj.tags.length = 0;
+        if (obj.tags) obj.tags.forEach(t => { try { tags.push({ name: t.name, pattern: t.pattern, re: compilePattern(t.pattern), comments: t.comments }); } catch { } });
+        if (obj.labels) obj.labels.length = 0;
+        if (obj.labels) obj.labels.forEach(l => { try { labels.push({ name: l.name, pattern: l.pattern, re: compilePattern(l.pattern), comments: l.comments }); } catch { } });
+      } catch { }
+      refreshLabelsUI();
+      refreshTagsUI();
+    }
 
-/* ===== Upload / DnD ===== */
-const fileInput=document.getElementById('fileInput');
-document.getElementById('btnUploadLink').onclick=()=>fileInput.click();
-fileInput.onchange=()=>fileInput.files?.length && loadFiles(fileInput.files);
+    /* ===== Upload / DnD ===== */
+    const fileInput = document.getElementById('fileInput');
+    document.getElementById('btnUploadLink').onclick = () => fileInput.click();
+    fileInput.onchange = () => { if (fileInput.files?.length) { loadFiles(fileInput.files); fileInput.value = ''; } };
 
-const drop=document.getElementById('drop');
-['dragover','dragenter'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('dragover')}));
-['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>drop.classList.remove('dragover')));
-drop.ondrop=e=>{e.preventDefault(); if(e.dataTransfer.files?.length) loadFiles(e.dataTransfer.files)};
+    const drop = document.getElementById('drop');
+    ['dragover', 'dragenter'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('dragover') }));
+    ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => drop.classList.remove('dragover')));
+    drop.ondrop = e => { e.preventDefault(); if (e.dataTransfer.files?.length) loadFiles(e.dataTransfer.files) };
 
-/* ===== Right-panel links ===== */
-document.getElementById('csvAllLink').onclick=()=>{ logEvent('csv_export',{scope:'visible'}); exportCSV(rowsVisible()); };
-document.getElementById('csvFilteredLink').onclick=()=>{ logEvent('csv_export',{scope:'filtered'}); exportCSV(rowsFiltered()); };
-document.getElementById('copySel').onclick=()=>{ logEvent('copy_text',{scope:'visible'}); copyText(rowsVisible()); };
-document.getElementById('copyAll').onclick=()=>{ logEvent('copy_text',{scope:'all'}); copyText(allRows()); };
-document.getElementById('loadTagsLink').onclick=()=>document.getElementById('tagsFile').click();
-document.getElementById('tagsFile').onchange=e=>{ loadTagOrLabel(e.target.files[0],tags); };
-document.getElementById('loadLabelsLink').onclick=()=>document.getElementById('labelsFile').click();
-document.getElementById('labelsFile').onchange=e=>{ loadLabelCSV(e.target.files[0]); };
-document.getElementById('dlLabelTplLink').onclick=()=>{ logEvent('download_label_template'); downloadLabelTemplateCSV(); };
+    /* ===== Right-panel links ===== */
+    document.getElementById('csvAllLink').onclick = () => { logEvent('csv_export', { scope: 'visible' }); exportCSV(rowsVisible()); };
+    document.getElementById('csvSelectedLink').onclick = () => { logEvent('csv_export', { scope: 'selected' }); exportCSV(rowsSelected()); };
+    document.getElementById('copySel').onclick = () => { logEvent('copy_text', { scope: 'selected' }); copyText(rowsSelected()); };
+    document.getElementById('copyAll').onclick = () => { logEvent('copy_text', { scope: 'all' }); copyText(allRows()); };
+    document.getElementById('loadTagsLink').onclick = () => document.getElementById('tagsFile').click();
+    document.getElementById('tagsFile').onchange = e => { loadTagOrLabel(e.target.files[0], tags); };
+    document.getElementById('loadLabelsLink').onclick = () => document.getElementById('labelsFile').click();
+    document.getElementById('labelsFile').onchange = e => { loadLabelCSV(e.target.files[0]); };
+    document.getElementById('dlLabelTplLink').onclick = () => { logEvent('download_label_template'); downloadLabelTemplateCSV(); };
 
-/* ===== Top bar zoom + nav ===== */
-document.getElementById('fit').onclick=()=>{ logEvent('zoom_fit'); fitWidth(); syncZoomUI(); };
-document.getElementById('zoomIn').onclick=()=>{ zoom(+0.2,{source:'button'}); };
-document.getElementById('zoomOut').onclick=()=>{ zoom(-0.2,{source:'button'}); };
-zoomSlider.addEventListener('input',()=>{ setScale(parseFloat(zoomSlider.value), {source:'slider'}); });
+    /* ===== Top bar zoom + nav ===== */
+    document.getElementById('fit').onclick = () => { logEvent('zoom_fit'); fitWidth(); syncZoomUI(); };
+    document.getElementById('zoomIn').onclick = () => { zoom(+0.2, { source: 'button' }); };
+    document.getElementById('zoomOut').onclick = () => { zoom(-0.2, { source: 'button' }); };
+    zoomSlider.addEventListener('input', () => { setScale(parseFloat(zoomSlider.value), { source: 'slider' }); });
+    /* ===== Patterns helper ===== */
+    function compilePattern(pat) {
+      if (!pat) return /$./i;
+      // If starts/ends with /, use as raw regex
+      if (pat.startsWith('/') && pat.lastIndexOf('/') > 0) {
+        const lastSlash = pat.lastIndexOf('/');
+        const body = pat.slice(1, lastSlash);
+        const flags = pat.slice(lastSlash + 1);
+        try { return new RegExp(body, flags || 'i'); } catch { }
+      }
+      // Otherwise: escape regex chars, then map * to .*
+      let escaped = pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+      escaped = escaped.replace(/\*/g, '.*');
+      return new RegExp(escaped, 'i');
+    }
 
-document.getElementById('navPrev').onclick=()=>nav(-1);
-document.getElementById('navNext').onclick=()=>nav(1);
-
-/* ===== Panel resize/collapse ===== */
-setupSplitter('splitL', document.getElementById('filesCol'), +1);
-setupSplitter('splitR', document.getElementById('rightCol'), -1);
-document.getElementById('toggleLeftLink').onclick=()=>toggleLeft();
-menuBtn.onclick=()=>toggleLeft(true);
-
-/* ===== Keyboard ===== */
-window.addEventListener('keydown',hotkeys);
-window.addEventListener('keydown',e=>{ if(e.key==='Escape' && modalOpen()) toggleHelp(false); });
-
-/* ===== Middle-pane scroll wheel zoom ===== */
-viewEl.addEventListener('wheel',e=>{ e.preventDefault(); const dz = (e.deltaY<0)? +0.12 : -0.12; zoom(dz,{source:'wheel'}); },{passive:false});
-
-/* ===== Panning: RMB + drag ===== */
-viewEl.addEventListener('contextmenu',e=>e.preventDefault());
-let panning=false, panStart={x:0,y:0,sl:0,st:0};
-viewEl.addEventListener('mousedown',e=>{
-  if(e.button!==2) return; panning=true; panStart={x:e.clientX,y:e.clientY,sl:viewEl.scrollLeft,st:viewEl.scrollTop};
-});
-window.addEventListener('mousemove',e=>{ if(!panning) return; viewEl.scrollLeft = panStart.sl - (e.clientX-panStart.x); viewEl.scrollTop = panStart.st - (e.clientY-panStart.y); });
-window.addEventListener('mouseup',()=>{ panning=false; });
-
-/* ===== Selection (pointer) ===== */
-// Rectangle drag (default)
-cSel.addEventListener('pointerdown',e=>{
-  if(iFile<0) return;
-  if(e.shiftKey) return; // polygon handled separately
-  cSel.setPointerCapture(e.pointerId); drawing=true; addMode=e.altKey;
-  const p=pt(e); liveRect={x:p.x,y:p.y,w:0,h:0}; drawSel();
-});
-
-cSel.addEventListener('pointermove',e=>{
-  if(polyDrawing){ lastMouse=pt(e); drawSel(); return; }
-  if(!drawing) return; const p=pt(e);
-  liveRect={x:Math.min(liveRect.x,p.x),y:Math.min(liveRect.y,p.y),w:Math.abs(p.x-liveRect.x),h:Math.abs(p.y-liveRect.y)}; drawSel();
-});
-
-cSel.addEventListener('pointerup',()=>{
-  if(!drawing) return; drawing=false; if(!liveRect||liveRect.w<2||liveRect.h<2){ liveRect=null; return; }
-  const r={page, x1:liveRect.x/scale, y1:liveRect.y/scale, x2:(liveRect.x+liveRect.w)/scale, y2:(liveRect.y+liveRect.h)/scale};
-  selRects = addMode ? [...selRects,r] : [r]; liveRect=null; selPolys = addMode ? selPolys : []; drawSel(); refill(); logEvent('selection_rect',{count:selRects.length});
-});
-
-// Polygon mode: click to add vertices while Shift is held
-document.addEventListener('pointerdown',e=>{
-  if(iFile<0) return; if(!e.shiftKey) return; if(e.target!==cSel) return; 
-  const p = pt(e), ptDoc = {x:p.x/scale, y:p.y/scale};
-  if(!polyDrawing){
-    polyDrawing=true; addMode=e.altKey; livePoly={page, points:[ptDoc]}; lastMouse=pt(e); drawSel(); logEvent('polygon_start',{page});
-  }else{
-    if(livePoly && livePoly.page===page){ livePoly.points.push(ptDoc); drawSel(); }
-  }
-});
-
-// Close polygon when Shift is released
-window.addEventListener('keyup',e=>{
-  if(e.key!=="Shift") return; if(!polyDrawing||!livePoly) return;
-  if(livePoly.points.length>=3){
-    if(addMode) selPolys = [...selPolys, livePoly]; else { selPolys=[livePoly]; selRects=[]; }
-    logEvent('selection_polygon',{vertices:livePoly.points.length});
-  }
-  polyDrawing=false; livePoly=null; lastMouse=null; drawSel(); refill();
-});
-
-// Click to toggle element selection
-cSel.addEventListener('click',e=>{
-  if(drawing||polyDrawing||iFile<0) return; const p=pt(e), x=p.x/scale, y=p.y/scale;
-  const hit=currentElems().filter(v=>v.page===page&&x>=v.x1&&x<=v.x2&&y>=v.y1&&y<=v.y2)
-                         .sort((a,b)=>area(a)-area(b))[0];
-  if(hit){ hit.keep=!hit.keep; drawHi(); scrollRowForElem(hit); refill(true); logEvent('toggle_keep',{keep:hit.keep}); }
-});
-
-/* ===== Core ===== */
-async function loadFiles(list){
-  drop.style.display='none';
-  for(const f of list){
-    logEvent('file_load_start',{name:f.name,size:f.size});
-    const ab=await f.arrayBuffer(), md5=md5ab(ab);
-    const pdf=await pdfjsLib.getDocument({data:ab}).promise;
-    const N=pdf.numPages, elements=[];
-    for(let p=1;p<=N;p++){
-      const pg=await pdf.getPage(p), vp=pg.getViewport({scale:1});
-      const t=await pg.getTextContent();
-      t.items.forEach(it=>{
-        const tr=pdfjsLib.Util.transform(vp.transform,it.transform), x=tr[4], y=tr[5]-it.height;
-        const el={file:files.length,md5,page:p,type:'text',x1:x,y1:y,x2:x+it.width,y2:y+it.height,text:it.str,keep:false};
-        elements.push(el); addToGrid(files.length,p,el);
-      });
-      (await pg.getAnnotations()).forEach(a=>{
-        if(!a.rect) return; const r=vp.convertToViewportRectangle(a.rect);
-        const el={file:files.length,md5,page:p,type:'annotation',
-          x1:Math.min(r[0],r[2]), y1:Math.min(r[1],r[3]), x2:Math.max(r[0],r[2]), y2:Math.max(r[1],r[3]),
-          text:a.contents||'(annotation)', keep:false};
-        elements.push(el); addToGrid(files.length,p,el);
+    /* ===== Undo / Redo Logic ===== */
+    function currentState() {
+      return JSON.stringify({
+        selRects, selPolys,
+        keeps: files.map(f => f.elements.reduce((acc, e, i) => { if (e.keep) acc.push(i); return acc; }, []))
       });
     }
-    const thumb=await firstThumb(pdf);
-    files.push({name:f.name,md5,pdfDoc:pdf,totalPages:N,elements,thumb});
-    logEvent('file_load_complete',{name:f.name,pages:N,md5});
-  }
-  if(iFile<0) await selectFile(0); else refreshThumbs();
-  refill();
-}
-async function selectFile(idx){
-  iFile=idx; page=1; selRects=[]; selPolys=[]; livePoly=null; polyDrawing=false; await render(); refreshThumbs(); refill(); logEvent('select_file',{index:idx});
-}
-function refreshThumbs(){
-  thumbs.innerHTML='';
-  if(iFile<0) return;
-  const f=files[iFile];
-  // Build page thumbnails for current file
-  for(let p=1;p<=f.totalPages;p++){
-    const d=document.createElement('div'); d.className='thumb'+(p===page?' active':'');
-    const c=document.createElement('canvas'); c.style.width=THUMB_W+'px';
-    d.appendChild(c);
-    const n=document.createElement('div'); n.className='n'; n.textContent=String(p); d.appendChild(n);
-    d.onclick=()=>{ page=p; render(); refill(); };
-    thumbs.appendChild(d);
-    (async()=>{
-      const pg=await f.pdfDoc.getPage(p); const vp=pg.getViewport({scale:THUMB_W/pg.getViewport({scale:1}).width});
-      c.width=vp.width; c.height=vp.height; await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
-    })();
-  }
-}
-async function render(){
-  if(iFile<0) return; const f=files[iFile]; const pg=await f.pdfDoc.getPage(page); const vp=pg.getViewport({scale:scale||1});
-  cPdf.width=vp.width; cPdf.height=vp.height; cHi.width=vp.width; cHi.height=vp.height; cSel.width=vp.width; cSel.height=vp.height;
-  await pg.render({canvasContext:ctxPdf,viewport:vp}).promise;
-  fileNameEl.textContent = f.name || '(unnamed)';
-  pageInfoEl.textContent = `File ${iFile+1}/${files.length} — Page ${page}/${f.totalPages}`;
-  drawHi(); drawSel(); syncZoomUI(); refreshThumbs();
-}
-function syncZoomUI(){ zoomSlider.value=String(scale.toFixed(2)); }
-function setScale(v){ const old=scale; scale=Math.max(0.2,Math.min(4,v)); if(scale!==old){ logEvent('zoom_change',{scale}); render(); } }
-function currentElems(){ return iFile<0?[]:files[iFile].elements; }
-function allRows(){ return files.flatMap(f=>f.elements); }
-function inAnyRegion(v){
-  if(selRects.some(b=>v.page===b.page&&v.x1>=b.x1&&v.y1>=b.y1&&v.x2<=b.x2&&v.y2<=b.y2)) return true;
-  for(const poly of selPolys){
-    if(v.page!==poly.page) continue;
-    const p1 = {x:v.x1,y:v.y1}, p2={x:v.x2,y:v.y2};
-    if(pointInPoly(p1, poly.points) && pointInPoly(p2, poly.points)) return true;
-  }
-  return false;
-}
-function rowsFiltered(){
-  // Use grid to limit candidates for rect selections; for polys fall back to page filter
-  if(selRects.length){
-    const out=[]; selRects.forEach(r=>{
-      const cand=candidatesInRect(r); cand.forEach(e=>{ if(inAnyRegion(e) && !out.includes(e)) out.push(e); });
-    }); return out;
-  }
-  return currentElems().filter(v=>inAnyRegion(v));
-}
-function rowsVisible(){ return (selRects.length||selPolys.length)? rowsFiltered() : (files.length>1? allRows(): currentElems()); }
+    function pushState() {
+      const s = currentState();
+      if (undoStack.length > 0 && undoStack[undoStack.length - 1] === s) return;
+      undoStack.push(s);
+      if (undoStack.length > 50) undoStack.shift();
+      redoStack = [];
+    }
+    function applyState(s) {
+      if (!s) return;
+      const data = JSON.parse(s);
+      selRects = data.selRects;
+      selPolys = data.selPolys;
+      data.keeps.forEach((keptIndices, fIdx) => {
+        if (files[fIdx]) {
+          files[fIdx].elements.forEach((e, i) => { e.keep = keptIndices.includes(i); });
+        }
+      });
+      drawSel(); drawHi(); refill();
+    }
+    function undo() {
+      if (undoStack.length <= 1) return;
+      redoStack.push(undoStack.pop());
+      applyState(undoStack[undoStack.length - 1]);
+    }
+    function redo() {
+      if (redoStack.length === 0) return;
+      const s = redoStack.pop();
+      undoStack.push(s);
+      applyState(s);
+    }
 
-/* Build table */
-function refill(keepScroll=false){
-  const rows=rowsVisible(); const oldTop = keepScroll ? document.getElementById('rightCol').scrollTop : 0;
-  tbody.innerHTML='';
-  rows.forEach(v=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML = `<td><input type="checkbox"${v.keep?' checked':''}></td>
-      <td>${v.file+1}</td><td>${v.page}</td><td>${esc(v.text)}</td>
+    document.getElementById('navPrev').onclick = () => nav(-1);
+    document.getElementById('navNext').onclick = () => nav(1);
+
+    /* ===== Search (Awesome-bar) ===== */
+    const searchBar = document.getElementById('searchBar');
+    const searchCountEl = document.getElementById('searchCount');
+    searchBar.oninput = () => {
+      searchTerm = searchBar.value.toLowerCase();
+      refill();
+    };
+
+    /* ===== Select All ===== */
+    const selectAllEl = document.getElementById('selectAll');
+    selectAllEl.onchange = () => {
+      const rows = rowsVisible();
+      rows.forEach(v => { v.keep = selectAllEl.checked; });
+      drawHi(); refill(true); pushState();
+    };
+
+    /* ===== RH Tabs ===== */
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      };
+    });
+
+    /* ===== Labels Editor ===== */
+    const labelsContainer = document.getElementById('labelsContainer');
+    document.getElementById('addLabelBtn').onclick = () => {
+      labels.push({ name: 'NewLabel', pattern: '.*', re: /.*/i, comments: '' });
+      refreshLabelsUI();
+      saveLabelState();
+      refill();
+    };
+
+    function refreshLabelsUI() {
+      labelsContainer.innerHTML = '';
+      labels.forEach((l, idx) => {
+        const row = document.createElement('div');
+        row.className = 'label-row';
+        row.innerHTML = `
+          <input type="text" placeholder="Pattern" value="${esc(l.pattern)}">
+          <input type="text" placeholder="Label" value="${esc(l.name)}">
+          <input type="text" placeholder="Comments" value="${esc(l.comments || '')}">
+          <div class="btn-del" title="Delete">×</div>
+        `;
+        const inputs = row.querySelectorAll('input');
+        inputs[0].onchange = e => {
+          l.pattern = e.target.value;
+          try { l.re = compilePattern(l.pattern); e.target.style.borderColor = ''; }
+          catch { e.target.style.borderColor = 'red'; }
+          saveLabelState(); refill();
+        };
+        inputs[1].onchange = e => { l.name = e.target.value; saveLabelState(); refill(); };
+        inputs[2].onchange = e => { l.comments = e.target.value; saveLabelState(); refill(); };
+        row.querySelector('.btn-del').onclick = () => {
+          labels.splice(idx, 1);
+          refreshLabelsUI(); saveLabelState(); refill();
+        };
+        labelsContainer.appendChild(row);
+      });
+    }
+
+    const tagsContainer = document.getElementById('tagsContainer');
+    document.getElementById('addTagBtn').onclick = () => {
+      tags.push({ name: 'NewTag', pattern: 'word*', re: compilePattern('word*'), comments: '' });
+      refreshTagsUI(); saveLabelState(); refill();
+    };
+
+    function refreshTagsUI() {
+      tagsContainer.innerHTML = '';
+      tags.forEach((t, idx) => {
+        const row = document.createElement('div');
+        row.className = 'label-row';
+        row.innerHTML = `
+          <input type="text" placeholder="Pattern" value="${esc(t.pattern)}">
+          <input type="text" placeholder="Tag Name" value="${esc(t.name)}">
+          <input type="text" placeholder="Comments" value="${esc(t.comments || '')}">
+          <div class="btn-del" title="Delete">×</div>
+        `;
+        const inputs = row.querySelectorAll('input');
+        inputs[0].onchange = e => {
+          t.pattern = e.target.value;
+          try { t.re = compilePattern(t.pattern); e.target.style.borderColor = ''; }
+          catch { e.target.style.borderColor = 'red'; }
+          saveLabelState(); refill();
+        };
+        inputs[1].onchange = e => { t.name = e.target.value; saveLabelState(); refill(); };
+        inputs[2].onchange = e => { t.comments = e.target.value; saveLabelState(); refill(); };
+        row.querySelector('.btn-del').onclick = () => {
+          tags.splice(idx, 1);
+          refreshTagsUI(); saveLabelState(); refill();
+        };
+        tagsContainer.appendChild(row);
+      });
+    }
+
+    document.getElementById('exportLabelsLink').onclick = () => exportRulesCSV(labels, 'labels.csv');
+    document.getElementById('exportTagsLink').onclick = () => exportRulesCSV(tags, 'tags.csv');
+
+    function exportRulesCSV(arr, filename) {
+      if (!arr.length) return;
+      let csv = 'regex,label,comments\n';
+      arr.forEach(r => {
+        csv += [JSON.stringify(r.pattern), JSON.stringify(r.name), JSON.stringify(r.comments || '')].join(',') + '\n';
+      });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = filename; a.click();
+    }
+    loadLabelState();
+
+    /* ===== Panel resize/collapse ===== */
+    setupSplitter('splitL', document.getElementById('filesCol'), +1);
+    setupSplitter('splitR', document.getElementById('rightCol'), -1);
+    document.getElementById('toggleLeftLink').onclick = () => toggleLeft();
+    menuBtn.onclick = () => toggleLeft(true);
+
+    /* ===== Keyboard ===== */
+    window.addEventListener('keydown', hotkeys);
+    window.addEventListener('keydown', e => { if (e.key === 'Escape' && modalOpen()) toggleHelp(false); });
+
+    /* ===== Middle-pane scroll wheel zoom (Zoom to mouse) ===== */
+    viewEl.addEventListener('wheel', e => {
+      if (e.ctrlKey || e.metaKey || spaceDown) {
+        e.preventDefault();
+        const dz = (e.deltaY < 0) ? 0.12 : -0.12;
+        const oldScale = scale;
+        const newScale = Math.max(0.2, Math.min(4, scale + dz));
+        if (newScale === oldScale) return;
+
+        // Zoom to mouse point
+        const rect = viewEl.getBoundingClientRect();
+        const mx = e.clientX - rect.left + viewEl.scrollLeft;
+        const my = e.clientY - rect.top + viewEl.scrollTop;
+
+        const ratio = newScale / oldScale;
+        setScale(newScale, { source: 'wheel' });
+
+        viewEl.scrollLeft = mx * ratio - (e.clientX - rect.left);
+        viewEl.scrollTop = my * ratio - (e.clientY - rect.top);
+      }
+    }, { passive: false });
+
+    /* ===== Panning: RMB + drag OR Space + LMB ===== */
+    viewEl.addEventListener('contextmenu', e => e.preventDefault());
+    let panning = false, panStart = { x: 0, y: 0, sl: 0, st: 0 };
+    viewEl.addEventListener('mousedown', e => {
+      if (e.button !== 2 && !spaceDown) return;
+      panning = true; panStart = { x: e.clientX, y: e.clientY, sl: viewEl.scrollLeft, st: viewEl.scrollTop };
+      if (spaceDown) e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+      if (!panning) return;
+      viewEl.scrollLeft = panStart.sl - (e.clientX - panStart.x);
+      viewEl.scrollTop = panStart.st - (e.clientY - panStart.y);
+    });
+    window.addEventListener('mouseup', () => { panning = false; });
+
+    /* ===== Selection (pointer) ===== */
+    // Rectangle drag (default)
+    cSel.addEventListener('pointerdown', e => {
+      if (iFile < 0 || spaceDown || e.button !== 0) return;
+      if (e.shiftKey) return; // polygon handled separately
+      cSel.setPointerCapture(e.pointerId); drawing = true; addMode = e.altKey;
+      startPt = pt(e); liveRect = { x: startPt.x, y: startPt.y, w: 0, h: 0 }; drawSel();
+    });
+
+    cSel.addEventListener('pointermove', e => {
+      if (polyDrawing) { lastMouse = pt(e); drawSel(); return; }
+      if (!drawing) return; const p = pt(e);
+      liveRect = {
+        x: Math.min(startPt.x, p.x),
+        y: Math.min(startPt.y, p.y),
+        w: Math.abs(p.x - startPt.x),
+        h: Math.abs(p.y - startPt.y)
+      };
+      drawSel();
+    });
+
+    cSel.addEventListener('pointerup', () => {
+      if (!drawing) return; drawing = false; if (!liveRect || liveRect.w < 2 || liveRect.h < 2) { liveRect = null; return; }
+      const r = { page, x1: liveRect.x / scale, y1: liveRect.y / scale, x2: (liveRect.x + liveRect.w) / scale, y2: (liveRect.y + liveRect.h) / scale };
+      selRects = addMode ? [...selRects, r] : [r]; liveRect = null; selPolys = addMode ? selPolys : []; drawSel(); refill(); logEvent('selection_rect', { count: selRects.length });
+      pushState();
+    });
+
+    // Polygon mode: click to add vertices while Shift is held
+    document.addEventListener('pointerdown', e => {
+      if (iFile < 0) return; if (!e.shiftKey) return; if (e.target !== cSel) return;
+      const p = pt(e), ptDoc = { x: p.x / scale, y: p.y / scale };
+      if (!polyDrawing) {
+        polyDrawing = true; addMode = e.altKey; livePoly = { page, points: [ptDoc] }; lastMouse = pt(e); drawSel(); logEvent('polygon_start', { page });
+      } else {
+        if (livePoly && livePoly.page === page) { livePoly.points.push(ptDoc); drawSel(); }
+      }
+    });
+
+    // Close polygon when Shift is released
+    window.addEventListener('keyup', e => {
+      if (e.key !== "Shift") return; if (!polyDrawing || !livePoly) return;
+      if (livePoly.points.length >= 3) {
+        if (addMode) selPolys = [...selPolys, livePoly]; else { selPolys = [livePoly]; selRects = []; }
+        logEvent('selection_polygon', { vertices: livePoly.points.length });
+      }
+      polyDrawing = false; livePoly = null; lastMouse = null; drawSel(); refill();
+      pushState();
+    });
+
+    // Click to toggle element selection
+    cSel.addEventListener('click', e => {
+      if (drawing || polyDrawing || iFile < 0) return; const p = pt(e), x = p.x / scale, y = p.y / scale;
+      const hit = currentElems().filter(v => v.page === page && x >= v.x1 && x <= v.x2 && y >= v.y1 && y <= v.y2)
+        .sort((a, b) => area(a) - area(b))[0];
+      if (hit) { hit.keep = !hit.keep; drawHi(); scrollRowForElem(hit); refill(true); logEvent('toggle_keep', { keep: hit.keep }); pushState(); }
+    });
+
+    /* ===== Core ===== */
+    async function loadFiles(list) {
+      drop.style.display = 'none';
+      for (const f of list) {
+        logEvent('file_load_start', { name: f.name, size: f.size });
+        const ab = await f.arrayBuffer(), md5 = md5ab(ab);
+        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        const N = pdf.numPages, elements = [];
+        for (let p = 1; p <= N; p++) {
+          const pg = await pdf.getPage(p), vp = pg.getViewport({ scale: 1 });
+          const t = await pg.getTextContent();
+          t.items.forEach(it => {
+            if (!it.str || !it.str.trim()) return;
+            const m = pdfjsLib.Util.transform(vp.transform, it.transform);
+            // Height in text-space is 1. Font size 'fs' is approx hypot(m[0], m[1]).
+            const fs = Math.sqrt(m[0] * m[0] + m[1] * m[1]);
+            // it.width is the rendered width at font size 'fs'. 
+            // To get width in text-space (where height=1), we must divide by fs.
+            const w = fs > 0 ? it.width / fs : 0;
+            const corners = [[0, -0.2], [w, -0.2], [w, 0.8], [0, 0.8]];
+            const vpts = corners.map(c => [
+              m[0] * c[0] + m[2] * c[1] + m[4],
+              m[1] * c[0] + m[3] * c[1] + m[5]
+            ]);
+            const x1 = Math.min(...vpts.map(c => c[0])), y1 = Math.min(...vpts.map(c => c[1]));
+            const x2 = Math.max(...vpts.map(c => c[0])), y2 = Math.max(...vpts.map(c => c[1]));
+
+            const el = { file: files.length, md5, page: p, type: 'text', x1, y1, x2, y2, text: it.str, keep: false };
+            elements.push(el); addToGrid(files.length, p, el);
+          });
+          (await pg.getAnnotations()).forEach(a => {
+            if (!a.rect) return; const r = vp.convertToViewportRectangle(a.rect);
+            const el = {
+              file: files.length, md5, page: p, type: 'annotation',
+              x1: Math.min(r[0], r[2]), y1: Math.min(r[1], r[3]), x2: Math.max(r[0], r[2]), y2: Math.max(r[1], r[3]),
+              text: a.contents || '(annotation)', keep: false
+            };
+            elements.push(el); addToGrid(files.length, p, el);
+          });
+        }
+        const thumb = await firstThumb(pdf);
+        files.push({ name: f.name, md5, pdfDoc: pdf, totalPages: N, elements, thumb });
+        logEvent('file_load_complete', { name: f.name, pages: N, md5 });
+      }
+      if (iFile < 0) await selectFile(0); else refreshThumbs();
+      refill();
+      pushState();
+    }
+    async function selectFile(idx) {
+      iFile = idx; page = 1; selRects = []; selPolys = []; livePoly = null; polyDrawing = false; await render(); refreshThumbs(); refill(); logEvent('select_file', { index: idx });
+    }
+    function refreshThumbs() {
+      thumbs.innerHTML = '';
+      if (iFile < 0) return;
+      const f = files[iFile];
+      // Build page thumbnails for current file
+      for (let p = 1; p <= f.totalPages; p++) {
+        const d = document.createElement('div'); d.className = 'thumb' + (p === page ? ' active' : '');
+        const c = document.createElement('canvas'); // Grid auto-fits width
+        d.appendChild(c);
+        const n = document.createElement('div'); n.className = 'n'; n.textContent = String(p); d.appendChild(n);
+        d.onclick = () => { page = p; render(); refill(); };
+        thumbs.appendChild(d);
+        (async () => {
+          const pg = await f.pdfDoc.getPage(p);
+          const baseVp = pg.getViewport({ scale: 1 });
+          const scale = 80 / baseVp.width; // Fixed width for thumb calculation, CSS limits display
+          const vp = pg.getViewport({ scale });
+          c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+        })();
+      }
+    }
+    async function render() {
+      if (iFile < 0) return; const f = files[iFile]; const pg = await f.pdfDoc.getPage(page); const vp = pg.getViewport({ scale: scale || 1 });
+      cPdf.width = vp.width; cPdf.height = vp.height; cHi.width = vp.width; cHi.height = vp.height; cSel.width = vp.width; cSel.height = vp.height;
+      await pg.render({ canvasContext: ctxPdf, viewport: vp }).promise;
+      fileNameEl.textContent = f.name || '(unnamed)';
+      pageInfoEl.textContent = `File ${iFile + 1}/${files.length} — Page ${page}/${f.totalPages}`;
+      drawHi(); drawSel(); syncZoomUI(); refreshThumbs();
+    }
+    function syncZoomUI() { zoomSlider.value = String(scale.toFixed(2)); }
+    function setScale(v) { const old = scale; scale = Math.max(0.2, Math.min(4, v)); if (scale !== old) { logEvent('zoom_change', { scale }); render(); } }
+    function currentElems() { return iFile < 0 ? [] : files[iFile].elements; }
+    function allRows() { return files.flatMap(f => f.elements); }
+    function rowsSelected() { return allRows().filter(v => v.keep); }
+    function inAnyRegion(v) {
+      // Intersection check (more robust than containment)
+      const rectMatch = selRects.some(b => v.page === b.page && v.x1 <= b.x2 && v.x2 >= b.x1 && v.y1 <= b.y2 && v.y2 >= b.y1);
+      if (rectMatch) return true;
+      for (const poly of selPolys) {
+        if (v.page !== poly.page) continue;
+        const p1 = { x: v.x1, y: v.y1 }, p2 = { x: v.x2, y: v.y2 }, p3 = { x: v.x1, y: v.y2 }, p4 = { x: v.x2, y: v.y1 };
+        if (pointInPoly(p1, poly.points) || pointInPoly(p2, poly.points) || pointInPoly(p3, poly.points) || pointInPoly(p4, poly.points)) return true;
+      }
+      return false;
+    }
+    function rowsFiltered() {
+      // Use grid to limit candidates for rect selections; for polys fall back to page filter
+      if (selRects.length) {
+        const out = []; selRects.forEach(r => {
+          const cand = candidatesInRect(r); cand.forEach(e => { if (inAnyRegion(e) && !out.includes(e)) out.push(e); });
+        }); return out;
+      }
+      return currentElems().filter(v => inAnyRegion(v));
+    }
+    function rowsVisible() {
+      let filtered = (selRects.length || selPolys.length) ? rowsFiltered() : (files.length > 1 ? allRows() : currentElems());
+      if (searchTerm) {
+        filtered = filtered.filter(v => v.text.toLowerCase().includes(searchTerm));
+      }
+      return filtered;
+    }
+
+    /* Build table */
+    function refill(keepScroll = false) {
+      const rows = rowsVisible();
+      const totalCount = (files.length > 1 ? allRows().length : currentElems().length);
+      searchCountEl.textContent = `${rows.length}/${totalCount}`;
+
+      const oldTop = keepScroll ? document.getElementById('tab-data').scrollTop : 0;
+      tbody.innerHTML = '';
+
+      // Limit DOM rows for performance, but show all if small
+      const limit = 500;
+      const toShow = rows.slice(0, limit);
+
+      toShow.forEach(v => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><input type="checkbox"${v.keep ? ' checked' : ''}></td>
+      <td>${v.file + 1}</td><td>${v.page}</td><td>${esc(v.text)}</td>
       <td>${labelNames(v).join('; ')}</td>
       <td>${n(v.x1)}</td><td>${n(v.y1)}</td><td>${n(v.x2)}</td><td>${n(v.y2)}</td>`;
-    tr.querySelector('input').onchange=e=>{v.keep=e.target.checked; drawHi();}
-    tr.addEventListener('click',e=>{ if(e.target.tagName!=='INPUT'){ v.keep=!v.keep; tr.querySelector('input').checked=v.keep; drawHi(); }});
-    tbody.appendChild(tr);
-  });
-  if(keepScroll) document.getElementById('rightCol').scrollTop = oldTop;
-}
+        tr.querySelector('input').onchange = e => { v.keep = e.target.checked; drawHi(); pushState(); }
+        tr.addEventListener('click', e => { if (e.target.tagName !== 'INPUT') { v.keep = !v.keep; tr.querySelector('input').checked = v.keep; drawHi(); pushState(); } });
+        tbody.appendChild(tr);
+      });
 
-function scrollRowForElem(elem){
-  const rows=rowsVisible();
-  const idx = rows.indexOf(elem);
-  if(idx===-1) return;
-  const tr = tbody.children[idx];
-  if(tr){ tr.scrollIntoView({block:'nearest'}); tr.classList.add('flash'); setTimeout(()=>tr.classList.remove('flash'),600); }
-}
+      if (rows.length > limit) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="10" style="text-align:center; color:#888;">... showing first ${limit} of ${rows.length} rows (use filters to narrow down) ...</td>`;
+        tbody.appendChild(tr);
+      }
 
-/* Labels & tags */
-function labelNames(v){
-  const out=[]; tags.forEach(t=>t.re.test(v.text)&&out.push(t.name));
-  labels.forEach(l=>l.re.test(v.text)&&out.push(l.name));
-  return out;
-}
-
-/* Drawing */
-function drawHi(){
-  ctxHi.clearRect(0,0,cHi.width,cHi.height);
-  currentElems().forEach(v=>{
-    if(v.page!==page || !v.keep) return;
-    const x=v.x1*scale,y=v.y1*scale,w=(v.x2-v.x1)*scale,h=(v.y2-v.y1)*scale;
-    ctxHi.fillStyle=HIGHLIGHT_COLOR; ctxHi.fillRect(x,y,w,h);
-  });
-}
-function drawSel(){
-  ctxSel.clearRect(0,0,cSel.width,cSel.height);
-  selRects.filter(b=>b.page===page).forEach(b=>{
-    ctxSel.fillStyle=REGION_FILL; ctxSel.strokeStyle=REGION_STROKE; ctxSel.lineWidth=2;
-    const x=b.x1*scale,y=b.y1*scale,w=(b.x2-b.x1)*scale,h=(b.y2-b.y1)*scale;
-    ctxSel.fillRect(x,y,w,h); ctxSel.strokeRect(x,y,w,h);
-  });
-  if(liveRect){ ctxSel.fillStyle=REGION_FILL; ctxSel.strokeStyle=REGION_STROKE; ctxSel.lineWidth=2;
-    ctxSel.fillRect(liveRect.x,liveRect.y,liveRect.w,liveRect.h); ctxSel.strokeRect(liveRect.x,liveRect.y,liveRect.w,liveRect.h); }
-  const polysHere = selPolys.filter(p=>p.page===page);
-  polysHere.forEach(poly=>drawPolygon(poly.points));
-  if(livePoly && livePoly.page===page){
-    const pts = [...livePoly.points];
-    if(lastMouse){ pts.push({x:lastMouse.x/scale, y:lastMouse.y/scale}); }
-    drawPolygon(pts, true);
-  }
-}
-function drawPolygon(points, isLive=false){
-  if(points.length<2) return; 
-  ctxSel.fillStyle = REGION_FILL; ctxSel.strokeStyle = REGION_STROKE; ctxSel.lineWidth=2;
-  ctxSel.beginPath();
-  ctxSel.moveTo(points[0].x*scale, points[0].y*scale);
-  for(let i=1;i<points.length;i++) ctxSel.lineTo(points[i].x*scale, points[i].y*scale);
-  if(!isLive) ctxSel.closePath();
-  ctxSel.fill(); ctxSel.stroke();
-  ctxSel.beginPath();
-  points.forEach(p=>{ ctxSel.moveTo(p.x*scale+2,p.y*scale); ctxSel.arc(p.x*scale,p.y*scale,2,0,Math.PI*2); });
-  ctxSel.fill();
-}
-
-/* Nav / Zoom */
-async function nav(d){
-  if(iFile<0) return; const f=files[iFile]; let p=page+d;
-  if(p<1){ if(iFile>0){ iFile--; page=files[iFile].totalPages; selRects=[]; selPolys=[]; await render(); refreshThumbs(); refill(); } return; }
-  if(p>f.totalPages){ if(iFile<files.length-1){ iFile++; page=1; selRects=[]; selPolys=[]; await render(); refreshThumbs(); refill(); } return; }
-  page=p; await render(); refill(); logEvent('page_nav',{page});
-}
-function zoom(d){ setScale((scale||1)+d); }
-async function fitWidth(){
-  if(iFile<0) return; const f=files[iFile], pg=await f.pdfDoc.getPage(page);
-  const vp=pg.getViewport({scale:1}), cont=document.getElementById('view');
-  setScale(Math.max(0.2, cont.clientWidth/vp.width));
-}
-async function fitHeight(){
-  if(iFile<0) return; const f=files[iFile], pg=await f.pdfDoc.getPage(page);
-  const vp=pg.getViewport({scale:1}), cont=document.getElementById('view');
-  setScale(Math.max(0.2, cont.clientHeight/vp.height));
-}
-
-/* IO */
-function exportCSV(rows){
-  if(!rows.length) return;
-  let csv='selected,file_index,page,text,labels,x1,y1,x2,y2,md5\n';
-  rows.forEach(v=>{
-    const labs=labelNames(v).join('; ');
-    csv+=[v.keep, v.file+1, v.page, JSON.stringify(v.text), JSON.stringify(labs), v.x1,v.y1,v.x2,v.y2, v.md5].join(',')+'\n';
-  });
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='extracted.csv'; a.click();
-}
-async function copyText(rows){ const t=rows.map(r=>r.text).join('\n'); if(t) await navigator.clipboard.writeText(t); }
-
-/* Patterns: tags simple loader (name,regex on each line) */
-function loadTagOrLabel(file,arr){
-  if(!file) return; const r=new FileReader();
-  r.onload=()=>{ arr.splice(0,arr.length,...r.result.split(/\r?\n/).map(line=>{
-      if(!line.trim()||line.trim().startsWith('#')) return null;
-      const i=line.indexOf(','); if(i<0) return null;
-      const name=line.slice(0,i).trim(), pat=line.slice(i+1).trim();
-      try{return {name, re:new RegExp(pat,'i')}}catch{return null}
-    }).filter(Boolean));
-    saveLabelState(); refill(); logEvent('load_tags',{count:arr.length});
-  };
-  r.readAsText(file);
-}
-
-/* Label CSV: headers regex,label */
-function loadLabelCSV(file){
-  if(!file) return; const r=new FileReader();
-  r.onload=()=>{
-    const lines = r.result.split(/\r?\n/).filter(Boolean);
-    if(!lines.length) return;
-    const hdr = lines[0].split(',').map(s=>s.trim().toLowerCase());
-    const iRegex = hdr.indexOf('regex'), iLabel = hdr.indexOf('label');
-    if(iRegex===-1 || iLabel===-1) { alert('Label CSV must have headers: regex,label'); return; }
-    labels.length = 0;
-    for(let k=1;k<lines.length;k++){
-      const parts = splitCSVLine(lines[k]);
-      const pat = (parts[iRegex]||'').trim();
-      const name = (parts[iLabel]||'').trim();
-      if(!pat || !name) continue;
-      try{ labels.push({name, re:new RegExp(pat,'i')}); }catch{}
+      if (keepScroll) document.getElementById('tab-data').scrollTop = oldTop;
     }
-    saveLabelState(); refill(); logEvent('load_labels',{count:labels.length});
-  };
-  r.readAsText(file);
-}
-/* Very small CSV splitter for 1 line (handles quotes) */
-function splitCSVLine(line){
-  const out=[]; let cur='', q=false;
-  for(let i=0;i<line.length;i++){
-    const ch=line[i];
-    if(ch==='\"'){ if(q && line[i+1]==='\"'){ cur+='\"'; i++; } else { q=!q; } }
-    else if(ch===',' && !q){ out.push(cur); cur=''; }
-    else cur+=ch;
-  }
-  out.push(cur); return out;
-}
-function downloadLabelTemplateCSV(){
-  const t = "regex,label\n^(INV|Invoice)\\s*#?\\d+,InvoiceNumber\n^PO[- ]?\\d+,PurchaseOrder\n\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b,Email\n";
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'})); a.download='label_formats_template.csv'; a.click();
-}
 
-/* Splitters & collapse */
-function setupSplitter(id, target, dir){
-  const bar=document.getElementById(id);
-  let drag=false, startX=0, startW=0;
-  bar.addEventListener('mousedown',e=>{
-    drag=true; startX=e.clientX; startW=target.getBoundingClientRect().width;
-    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
-  });
-  function move(e){
-    if(!drag) return;
-    const dx=e.clientX-startX;
-    let w = startW + dx*dir;
-    if(target===document.getElementById('filesCol')) w=Math.max(0,Math.min(400,w));
-    if(target===document.getElementById('rightCol')) w=Math.max(200,Math.min(700,w));
-    target.style.width=w+'px';
-    if(target.id==='filesCol'){ target.style.minWidth='0px'; updateHamburger(); }
-  }
-  function up(){ drag=false; document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); }
-}
-function toggleLeft(forceExpand){
-  const col=document.getElementById('filesCol'); const w=parseInt(getComputedStyle(col).width,10);
-  const collapsed = w<=0;
-  if(forceExpand || collapsed){ const newW=Math.max(THUMB_W+16,68); col.style.width=newW+'px'; col.style.minWidth='0px'; }
-  else { col.style.width='0px'; col.style.minWidth='0px'; }
-  updateHamburger();
-}
-function updateHamburger(){
-  const col=document.getElementById('filesCol'); const w = parseInt(getComputedStyle(col).width,10);
-  const collapsed = w<=0; menuBtn.style.display = collapsed ? 'inline-block' : 'none';
-}
+    function scrollRowForElem(elem) {
+      const rows = rowsVisible();
+      const idx = rows.indexOf(elem);
+      if (idx === -1) return;
+      const tr = tbody.children[idx];
+      if (tr) { tr.scrollIntoView({ block: 'nearest' }); tr.classList.add('flash'); setTimeout(() => tr.classList.remove('flash'), 600); }
+    }
 
-/* Help modal */
-document.getElementById('help').onclick=()=>toggleHelp(true);
-document.getElementById('closeHelp').onclick=()=>toggleHelp(false);
-function toggleHelp(on){ logEvent('help_toggle',{on}); document.getElementById('modal').style.display=on?'flex':'none' }
-function modalOpen(){ return document.getElementById('modal').style.display==='flex' }
+    /* Labels & tags */
+    function labelNames(v) {
+      const out = [];
+      tags.forEach(t => t.re && t.re.test(v.text) && out.push(t.name));
+      labels.forEach(l => l.re && l.re.test(v.text) && out.push(l.name));
+      return out;
+    }
 
-/* Hotkeys */
-function hotkeys(e){
-  if(e.target && /input|textarea/i.test(e.target.tagName)) return;
-  const ctrl=e.ctrlKey||e.metaKey;
-  if(e.key==='ArrowLeft'||e.key==='PageUp') return nav(-1);
-  if(e.key==='ArrowRight'||e.key==='PageDown') return nav(1);
-  if(e.shiftKey&&e.key==='ArrowLeft'){ if(iFile>0) selectFile(iFile-1) }
-  if(e.shiftKey&&e.key==='ArrowRight'){ if(iFile<files.length-1) selectFile(iFile+1) }
-  if(e.key==='0'){ setScale(1); }
-  if(e.key==='f'&&e.shiftKey){ fitHeight(); }
-  if(!e.shiftKey&&(e.key==='f'||e.key==='F')){ fitWidth(); }
-  if(e.key==='+'||e.key==='=') zoom(0.2);
-  if(e.key==='-'||e.key==='_') zoom(-0.2);
-  if(e.key==='Escape'){ if(!modalOpen()){ selRects=[]; selPolys=[]; livePoly=null; polyDrawing=false; drawSel(); refill(); logEvent('clear_selection'); } }
-  if(ctrl&&(e.key==='f'||e.key==='F')){ e.preventDefault(); exportCSV(rowsFiltered()); }
-  if(ctrl&&(e.key==='c'||e.key==='C')){ e.preventDefault(); copyText(rowsVisible()); }
-  if(e.key==='h'||e.key==='H'||e.key==='?') toggleHelp(true);
-}
+    /* Drawing */
+    function drawHi() {
+      ctxHi.clearRect(0, 0, cHi.width, cHi.height);
+      currentElems().forEach(v => {
+        if (v.page !== page || !v.keep) return;
+        const x = v.x1 * scale, y = v.y1 * scale, w = (v.x2 - v.x1) * scale, h = (v.y2 - v.y1) * scale;
+        ctxHi.fillStyle = HIGHLIGHT_COLOR; ctxHi.fillRect(x, y, w, h);
+      });
+    }
+    function drawSel() {
+      ctxSel.clearRect(0, 0, cSel.width, cSel.height);
+      selRects.filter(b => b.page === page).forEach(b => {
+        ctxSel.fillStyle = REGION_FILL; ctxSel.strokeStyle = REGION_STROKE; ctxSel.lineWidth = 2;
+        const x = b.x1 * scale, y = b.y1 * scale, w = (b.x2 - b.x1) * scale, h = (b.y2 - b.y1) * scale;
+        ctxSel.fillRect(x, y, w, h); ctxSel.strokeRect(x, y, w, h);
+      });
+      if (liveRect) {
+        ctxSel.fillStyle = REGION_FILL; ctxSel.strokeStyle = REGION_STROKE; ctxSel.lineWidth = 2;
+        ctxSel.fillRect(liveRect.x, liveRect.y, liveRect.w, liveRect.h); ctxSel.strokeRect(liveRect.x, liveRect.y, liveRect.w, liveRect.h);
+      }
+      const polysHere = selPolys.filter(p => p.page === page);
+      polysHere.forEach(poly => drawPolygon(poly.points));
+      if (livePoly && livePoly.page === page) {
+        const pts = [...livePoly.points];
+        if (lastMouse) { pts.push({ x: lastMouse.x / scale, y: lastMouse.y / scale }); }
+        drawPolygon(pts, true);
+      }
+    }
+    function drawPolygon(points, isLive = false) {
+      if (points.length < 2) return;
+      ctxSel.fillStyle = REGION_FILL; ctxSel.strokeStyle = REGION_STROKE; ctxSel.lineWidth = 2;
+      ctxSel.beginPath();
+      ctxSel.moveTo(points[0].x * scale, points[0].y * scale);
+      for (let i = 1; i < points.length; i++) ctxSel.lineTo(points[i].x * scale, points[i].y * scale);
+      if (!isLive) ctxSel.closePath();
+      ctxSel.fill(); ctxSel.stroke();
+      ctxSel.beginPath();
+      points.forEach(p => { ctxSel.moveTo(p.x * scale + 2, p.y * scale); ctxSel.arc(p.x * scale, p.y * scale, 2, 0, Math.PI * 2); });
+      ctxSel.fill();
+    }
 
-/* Utils */
-async function firstThumb(pdf){
-  const p=await pdf.getPage(1), vp=p.getViewport({scale:.22});
-  const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
-  await p.render({canvasContext:c.getContext('2d'),viewport:vp}).promise; return c.toDataURL('image/png');
-}
-function pt(e){ const r=cSel.getBoundingClientRect(); return {x:(e.clientX-r.left)*(cSel.width/r.width), y:(e.clientY-r.top)*(cSel.height/r.height)}}
-function esc(s){return (s??'').replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]))}
-function n(v){return Math.round(v)}
-function area(v){return (v.x2-v.x1)*(v.y2-v.y1)}
+    /* Nav / Zoom */
+    async function nav(d) {
+      if (iFile < 0) return; const f = files[iFile]; let p = page + d;
+      if (p < 1) { if (iFile > 0) { iFile--; page = files[iFile].totalPages; selRects = []; selPolys = []; await render(); refreshThumbs(); refill(); } return; }
+      if (p > f.totalPages) { if (iFile < files.length - 1) { iFile++; page = 1; selRects = []; selPolys = []; await render(); refreshThumbs(); refill(); } return; }
+      page = p; await render(); refill(); logEvent('page_nav', { page });
+    }
+    function zoom(d) { setScale((scale || 1) + d); }
+    async function fitWidth() {
+      if (iFile < 0) return; const f = files[iFile], pg = await f.pdfDoc.getPage(page);
+      const vp = pg.getViewport({ scale: 1 }), cont = document.getElementById('view');
+      setScale(Math.max(0.2, cont.clientWidth / vp.width));
+    }
+    async function fitHeight() {
+      if (iFile < 0) return; const f = files[iFile], pg = await f.pdfDoc.getPage(page);
+      const vp = pg.getViewport({ scale: 1 }), cont = document.getElementById('view');
+      setScale(Math.max(0.2, cont.clientHeight / vp.height));
+    }
 
-// Point in polygon (ray casting)
-function pointInPoly(pt, pts){
-  let inside=false; for(let i=0,j=pts.length-1;i<pts.length;j=i++){
-    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
-    const intersect = ((yi>pt.y)!== (yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi+1e-9) + xi);
-    if(intersect) inside=!inside;
-  } return inside;
-}
+    /* IO */
+    function exportCSV(rows) {
+      if (!rows.length) return;
+      let csv = 'selected,file_index,page,text,labels,x1,y1,x2,y2,md5\n';
+      rows.forEach(v => {
+        const labs = labelNames(v).join('; ');
+        csv += [v.keep, v.file + 1, v.page, JSON.stringify(v.text), JSON.stringify(labs), v.x1, v.y1, v.x2, v.y2, v.md5].join(',') + '\n';
+      });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = 'extracted.csv'; a.click();
+    }
+    async function copyText(rows) { const t = rows.map(r => r.text).join('\n'); if (t) await navigator.clipboard.writeText(t); }
 
-/* small, safe MD5 for ArrayBuffer */
-function md5ab(buf){
-  function cmn(q,a,b,x,s,t){a=(a+q+x+t)|0;return(((a<<s)|(a>>>32-s))+b)|0}
-  function ff(a,b,c,d,x,s,t){return cmn((b&c)|((~b)&d),a,b,x,s,t)}
-  function gg(a,b,c,d,x,s,t){return cmn((b&d)|(c&(~d)),a,b,x,s,t)}
-  function hh(a,b,c,d,x,s,t){return cmn(b^c^d,a,b,x,s,t)}
-  function ii(a,b,c,d,x,s,t){return cmn(c^(b|(~d)),a,b,x,s,t)}
-  function hx(n){let s='';for(let j=0;j<4;j++)s+=('0'+((n>>>(j*8))&255).toString(16)).slice(-2);return s}
-  const m=new Uint8Array(((((buf.byteLength+9)+63)>>6)<<6)); m.set(new Uint8Array(buf));
-  const l=buf.byteLength; m[l]=0x80; const bits=l*8;
-  m[m.length-8]=bits&255; m[m.length-7]=(bits>>>8)&255; m[m.length-6]=(bits>>>16)&255; m[m.length-5]=(bits>>>24)&255;
-  let a=1732584193,b=-271733879,c=-1732584194,d=271733878;
-  for(let i=0;i<m.length;i+=64){
-    const x=new Int32Array(16); for(let j=0;j<16;j++){const k=i+j*4; x[j]=m[k]|(m[k+1]<<8)|(m[k+2]<<16)|(m[k+3]<<24)}
-    const A=a,B=b,C=c,D=d;
-    a=ff(a,b,c,d,x[0],7,-680876936); d=ff(d,a,b,c,x[1],12,-389564586); c=ff(c,d,a,b,x[2],17,606105819);  b=ff(b,c,d,a,x[3],22,-1044525330);
-    a=ff(a,b,c,d,x[4],7,-176418897); d=ff(d,a,b,c,x[5],12,1200080426); c=ff(c,d,a,b,x[6],17,-1473231341); b=ff(b,c,d,a,x[7],22,-45705983);
-    a=ff(a,b,c,d,x[8],7,1770035416); d=ff(d,a,b,c,x[9],12,-1958414417); c=ff(c,d,a,b,x[10],17,-42063);     b=ff(b,c,d,a,x[11],22,-1990404162);
-    a=ff(a,b,c,d,x[12],7,1804603682); d=ff(d,a,b,c,x[13],12,-40341101); c=ff(c,d,a,b,x[14],17,-1502002290); b=ff(b,c,d,a,x[15],22,1236535329);
-    a=gg(a,b,c,d,x[1],5,-165796510);  d=gg(d,a,b,c,x[6],9,-1069501632); c=gg(c,d,a,b,x[11],14,643717713); b=gg(b,c,d,a,x[0],20,-373897302);
-    a=gg(a,b,c,d,x[5],5,-701558691);  d=gg(d,a,b,c,x[10],9,38016083);   c=gg(c,d,a,b,x[15],14,-660478335); b=gg(b,c,d,a,x[4],20,-405537848);
-    a=gg(a,b,c,d,x[9],5,568446438);   d=gg(d,a,b,c,x[14],9,-1019803690); c=gg(c,d,a,b,x[3],14,-187363961);  b=gg(b,c,d,a,x[8],20,1163531501);
-    a=gg(a,b,c,d,x[13],5,-1444681467);d=gg(d,a,b,c,x[2],9,-51403784);   c=gg(c,d,a,b,x[7],14,1735328473);  b=gg(b,c,d,a,x[12],20,-1926607734);
-    a=hh(a,b,c,d,x[5],4,-378558);     d=hh(d,a,b,c,x[8],11,-2022574463); c=hh(c,d,a,b,x[11],16,1839030562); b=hh(b,c,d,a,x[14],23,-35309556);
-    a=hh(a,b,c,d,x[1],4,-1530992060); d=hh(d,a,b,c,x[4],11,1272893353);  c=hh(c,d,a,b,x[7],16,-155497632);  b=hh(b,c,d,a,x[10],23,-1094730640);
-    a=hh(a,b,c,d,x[13],4,681279174);  d=hh(d,a,b,c,x[0],11,-358537222);  c=hh(c,d,a,b,x[3],16,-722521979);  b=hh(b,c,d,a,x[6],23,76029189);
-    a=ii(a,b,c,d,x[0],6,-198630844);  d=ii(d,a,b,c,x[7],10,1126891415);  c=ii(c,d,a,b,x[14],15,-1416354905); b=ii(b,c,d,a,x[5],21,-57434055);
-    a=ii(a,b,c,d,x[12],6,1700485571); d=ii(d,a,b,c,x[3],10,-1894986606); c=ii(c,d,a,b,x[10],15,-1051523);   b=ii(b,c,d,a,x[1],21,-2054922799);
-    a=ii(a,b,c,d,x[8],6,1873313359);  d=ii(d,a,b,c,x[15],10,-30611744);  c=ii(c,d,a,b,x[6],15,-1560198380); b=ii(b,c,d,a,x[13],21,1309151649);
-    a=(a+A)|0; b=(b+B)|0; c=(c+C)|0; d=(d+D)|0;
-  }
-  return hx(a)+hx(b)+hx(c)+hx(d);
-}
+    /* Patterns: tags simple loader (name,regex on each line) */
+    function loadTagOrLabel(file, arr) {
+      if (!file) return; const r = new FileReader();
+      r.onload = () => {
+        const lines = r.result.split(/\r?\n/).filter(Boolean);
+        if (!lines.length) return;
+        const hdr = lines[0].split(',').map(s => s.trim().toLowerCase());
+        const iRegex = hdr.indexOf('regex'), iLabel = hdr.indexOf('label'), iComments = hdr.indexOf('comments');
 
-// Initialize hamburger state
-updateHamburger();
-</script>
+        arr.length = 0;
+        if (iRegex !== -1 && iLabel !== -1) {
+          // CSV Mode
+          for (let k = 1; k < lines.length; k++) {
+            const parts = splitCSVLine(lines[k]);
+            const pat = (parts[iRegex] || '').trim();
+            const name = (parts[iLabel] || '').trim();
+            const comments = (iComments !== -1 ? (parts[iComments] || '').trim() : '');
+            if (!pat || !name) continue;
+            try { arr.push({ name, pattern: pat, re: compilePattern(pat), comments }); } catch { }
+          }
+        } else {
+          // Legacy/txt Mode (name,pattern)
+          lines.forEach(line => {
+            const i = line.indexOf(','); if (i < 0) return;
+            const name = line.slice(0, i).trim(), pat = line.slice(i + 1).trim();
+            try { arr.push({ name, pattern: pat, re: compilePattern(pat), comments: '' }); } catch { }
+          });
+        }
+        saveLabelState(); refreshLabelsUI(); refreshTagsUI(); refill(); logEvent('load_rules', { count: arr.length });
+      };
+      r.readAsText(file);
+    }
+
+    /* Label CSV: headers regex,label,comments */
+    function loadLabelCSV(file) {
+      loadTagOrLabel(file, labels);
+    }
+    /* Very small CSV splitter for 1 line (handles quotes) */
+    function splitCSVLine(line) {
+      const out = []; let cur = '', q = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '\"') { if (q && line[i + 1] === '\"') { cur += '\"'; i++; } else { q = !q; } }
+        else if (ch === ',' && !q) { out.push(cur); cur = ''; }
+        else cur += ch;
+      }
+      out.push(cur); return out;
+    }
+    function downloadLabelTemplateCSV() {
+      const t = "regex,label\n^(INV|Invoice)\\s*#?\\d+,InvoiceNumber\n^PO[- ]?\\d+,PurchaseOrder\n\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b,Email\n";
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/csv' })); a.download = 'label_formats_template.csv'; a.click();
+    }
+
+    /* Splitters & collapse */
+    function setupSplitter(id, target, dir) {
+      const bar = document.getElementById(id);
+      const grid = document.querySelector('.grid');
+      let drag = false, startX = 0, startW = 0;
+      bar.addEventListener('mousedown', e => {
+        drag = true; startX = e.clientX;
+        startW = target.getBoundingClientRect().width;
+        document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+      });
+      function move(e) {
+        if (!drag) return;
+        const dx = e.clientX - startX;
+        let w = startW + dx * dir;
+        if (target.id === 'filesCol') {
+          w = Math.max(0, Math.min(400, w));
+          grid.style.setProperty('--left-w', w + 'px');
+          updateHamburger();
+        }
+        if (target.id === 'rightCol') {
+          w = Math.max(200, Math.min(800, w));
+          grid.style.setProperty('--right-w', w + 'px');
+        }
+      }
+      function up() { drag = false; document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); }
+    }
+    function toggleLeft(forceExpand) {
+      const grid = document.querySelector('.grid');
+      const col = document.getElementById('filesCol');
+      const w = col.offsetWidth;
+      if (forceExpand || w <= 0) { grid.style.setProperty('--left-w', '75px'); }
+      else { grid.style.setProperty('--left-w', '0px'); }
+      updateHamburger();
+    }
+    function updateHamburger() {
+      const col = document.getElementById('filesCol');
+      const w = col.offsetWidth;
+      menuBtn.style.display = w <= 0 ? 'inline-block' : 'none';
+    }
+
+    /* Splash */
+    setTimeout(() => {
+      const splash = document.getElementById('splash');
+      if (splash) splash.classList.add('fade');
+    }, 1500);
+
+    /* Help modal */
+    document.getElementById('help').onclick = () => toggleHelp(true);
+    document.getElementById('closeHelp').onclick = () => toggleHelp(false);
+    function toggleHelp(on) { logEvent('help_toggle', { on }); document.getElementById('modal').style.display = on ? 'flex' : 'none' }
+    function modalOpen() { return document.getElementById('modal').style.display === 'flex' }
+
+    /* Hotkeys */
+    function hotkeys(e) {
+      if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (e.key === ' ') { spaceDown = true; return; }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') return nav(-1);
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') return nav(1);
+      if (e.shiftKey && e.key === 'ArrowLeft') { if (iFile > 0) selectFile(iFile - 1) }
+      if (e.shiftKey && e.key === 'ArrowRight') { if (iFile < files.length - 1) selectFile(iFile + 1) }
+      if (e.key === '0') { setScale(1); }
+      if (e.key === 'f' && e.shiftKey) { fitHeight(); }
+      if (!e.shiftKey && (e.key === 'f' || e.key === 'F')) { fitWidth(); }
+      if (e.key === '+' || e.key === '=') zoom(0.2);
+      if (e.key === '-' || e.key === '_') zoom(-0.2);
+      if (ctrl && e.key === 'z') { e.preventDefault(); undo(); }
+      if (ctrl && (e.key === 'r' || e.key === 'y')) { e.preventDefault(); redo(); }
+      if (e.key === 'Escape') { if (!modalOpen()) { selRects = []; selPolys = []; livePoly = null; polyDrawing = false; drawSel(); refill(); logEvent('clear_selection'); pushState(); } }
+      if (ctrl && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); exportCSV(rowsFiltered()); }
+      if (ctrl && (e.key === 'c' || e.key === 'C')) { e.preventDefault(); copyText(rowsVisible()); }
+      if (e.key === 'h' || e.key === 'H' || e.key === '?') toggleHelp(true);
+    }
+    window.addEventListener('keyup', e => { if (e.key === ' ') spaceDown = false; });
+
+    /* Utils */
+    async function firstThumb(pdf) {
+      const p = await pdf.getPage(1), vp = p.getViewport({ scale: .22 });
+      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+      await p.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; return c.toDataURL('image/png');
+    }
+    function pt(e) { const r = cSel.getBoundingClientRect(); return { x: (e.clientX - r.left) * (cSel.width / r.width), y: (e.clientY - r.top) * (cSel.height / r.height) } }
+    function esc(s) { return (s ?? '').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m])) }
+    function n(v) { return Math.round(v) }
+    function area(v) { return (v.x2 - v.x1) * (v.y2 - v.y1) }
+
+    // Point in polygon (ray casting)
+    function pointInPoly(pt, pts) {
+      let inside = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+        const intersect = ((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi + 1e-9) + xi);
+        if (intersect) inside = !inside;
+      } return inside;
+    }
+
+    /* small, safe MD5 for ArrayBuffer */
+    function md5ab(buf) {
+      function cmn(q, a, b, x, s, t) { a = (a + q + x + t) | 0; return (((a << s) | (a >>> 32 - s)) + b) | 0 }
+      function ff(a, b, c, d, x, s, t) { return cmn((b & c) | ((~b) & d), a, b, x, s, t) }
+      function gg(a, b, c, d, x, s, t) { return cmn((b & d) | (c & (~d)), a, b, x, s, t) }
+      function hh(a, b, c, d, x, s, t) { return cmn(b ^ c ^ d, a, b, x, s, t) }
+      function ii(a, b, c, d, x, s, t) { return cmn(c ^ (b | (~d)), a, b, x, s, t) }
+      function hx(n) { let s = ''; for (let j = 0; j < 4; j++)s += ('0' + ((n >>> (j * 8)) & 255).toString(16)).slice(-2); return s }
+      const m = new Uint8Array(((((buf.byteLength + 9) + 63) >> 6) << 6)); m.set(new Uint8Array(buf));
+      const l = buf.byteLength; m[l] = 0x80; const bits = l * 8;
+      m[m.length - 8] = bits & 255; m[m.length - 7] = (bits >>> 8) & 255; m[m.length - 6] = (bits >>> 16) & 255; m[m.length - 5] = (bits >>> 24) & 255;
+      let a = 1732584193, b = -271733879, c = -1732584194, d = 271733878;
+      for (let i = 0; i < m.length; i += 64) {
+        const x = new Int32Array(16); for (let j = 0; j < 16; j++) { const k = i + j * 4; x[j] = m[k] | (m[k + 1] << 8) | (m[k + 2] << 16) | (m[k + 3] << 24) }
+        const A = a, B = b, C = c, D = d;
+        a = ff(a, b, c, d, x[0], 7, -680876936); d = ff(d, a, b, c, x[1], 12, -389564586); c = ff(c, d, a, b, x[2], 17, 606105819); b = ff(b, c, d, a, x[3], 22, -1044525330);
+        a = ff(a, b, c, d, x[4], 7, -176418897); d = ff(d, a, b, c, x[5], 12, 1200080426); c = ff(c, d, a, b, x[6], 17, -1473231341); b = ff(b, c, d, a, x[7], 22, -45705983);
+        a = ff(a, b, c, d, x[8], 7, 1770035416); d = ff(d, a, b, c, x[9], 12, -1958414417); c = ff(c, d, a, b, x[10], 17, -42063); b = ff(b, c, d, a, x[11], 22, -1990404162);
+        a = ff(a, b, c, d, x[12], 7, 1804603682); d = ff(d, a, b, c, x[13], 12, -40341101); c = ff(c, d, a, b, x[14], 17, -1502002290); b = ff(b, c, d, a, x[15], 22, 1236535329);
+        a = gg(a, b, c, d, x[1], 5, -165796510); d = gg(d, a, b, c, x[6], 9, -1069501632); c = gg(c, d, a, b, x[11], 14, 643717713); b = gg(b, c, d, a, x[0], 20, -373897302);
+        a = gg(a, b, c, d, x[5], 5, -701558691); d = gg(d, a, b, c, x[10], 9, 38016083); c = gg(c, d, a, b, x[15], 14, -660478335); b = gg(b, c, d, a, x[4], 20, -405537848);
+        a = gg(a, b, c, d, x[9], 5, 568446438); d = gg(d, a, b, c, x[14], 9, -1019803690); c = gg(c, d, a, b, x[3], 14, -187363961); b = gg(b, c, d, a, x[8], 20, 1163531501);
+        a = gg(a, b, c, d, x[13], 5, -1444681467); d = gg(d, a, b, c, x[2], 9, -51403784); c = gg(c, d, a, b, x[7], 14, 1735328473); b = gg(b, c, d, a, x[12], 20, -1926607734);
+        a = hh(a, b, c, d, x[5], 4, -378558); d = hh(d, a, b, c, x[8], 11, -2022574463); c = hh(c, d, a, b, x[11], 16, 1839030562); b = hh(b, c, d, a, x[14], 23, -35309556);
+        a = hh(a, b, c, d, x[1], 4, -1530992060); d = hh(d, a, b, c, x[4], 11, 1272893353); c = hh(c, d, a, b, x[7], 16, -155497632); b = hh(b, c, d, a, x[10], 23, -1094730640);
+        a = hh(a, b, c, d, x[13], 4, 681279174); d = hh(d, a, b, c, x[0], 11, -358537222); c = hh(c, d, a, b, x[3], 16, -722521979); b = hh(b, c, d, a, x[6], 23, 76029189);
+        a = ii(a, b, c, d, x[0], 6, -198630844); d = ii(d, a, b, c, x[7], 10, 1126891415); c = ii(c, d, a, b, x[14], 15, -1416354905); b = ii(b, c, d, a, x[5], 21, -57434055);
+        a = ii(a, b, c, d, x[12], 6, 1700485571); d = ii(d, a, b, c, x[3], 10, -1894986606); c = ii(c, d, a, b, x[10], 15, -1051523); b = ii(b, c, d, a, x[1], 21, -2054922799);
+        a = ii(a, b, c, d, x[8], 6, 1873313359); d = ii(d, a, b, c, x[15], 10, -30611744); c = ii(c, d, a, b, x[6], 15, -1560198380); b = ii(b, c, d, a, x[13], 21, 1309151649);
+        a = (a + A) | 0; b = (b + B) | 0; c = (c + C) | 0; d = (d + D) | 0;
+      }
+      return hx(a) + hx(b) + hx(c) + hx(d);
+    }
+
+    // Initialize hamburger state
+    updateHamburger();
+  </script>
 </body>
+
 </html>
