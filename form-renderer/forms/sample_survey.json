@@ -1,0 +1,113 @@
+{
+  "title": "Customer Feedback Survey",
+  "description": "Please share your experience with our product.",
+  "logoPosition": "right",
+  "pages": [
+    {
+      "name": "page1",
+      "title": "Basic Information",
+      "elements": [
+        {
+          "type": "text",
+          "name": "full_name",
+          "title": "Full Name",
+          "isRequired": true,
+          "placeholder": "Enter your full name"
+        },
+        {
+          "type": "text",
+          "name": "email",
+          "title": "Email Address",
+          "isRequired": true,
+          "inputType": "email",
+          "placeholder": "you@example.com",
+          "validators": [
+            {
+              "type": "email"
+            }
+          ]
+        },
+        {
+          "type": "radiogroup",
+          "name": "role",
+          "title": "Your Role",
+          "choices": [
+            "Developer",
+            "Designer",
+            "Product Manager",
+            "Other"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "page2",
+      "title": "Product Feedback",
+      "elements": [
+        {
+          "type": "rating",
+          "name": "overall_rating",
+          "title": "Overall satisfaction with the product",
+          "isRequired": true,
+          "rateMin": 1,
+          "rateMax": 5,
+          "minRateDescription": "Very Unsatisfied",
+          "maxRateDescription": "Very Satisfied"
+        },
+        {
+          "type": "checkbox",
+          "name": "features_used",
+          "title": "Which features have you used?",
+          "choices": [
+            "Dashboard",
+            "Reporting",
+            "API Integration",
+            "User Management",
+            "Notifications"
+          ]
+        },
+        {
+          "type": "dropdown",
+          "name": "usage_frequency",
+          "title": "How often do you use the product?",
+          "choices": [
+            "Daily",
+            "Several times a week",
+            "Weekly",
+            "Monthly",
+            "Rarely"
+          ]
+        },
+        {
+          "type": "boolean",
+          "name": "would_recommend",
+          "title": "Would you recommend this product to a colleague?",
+          "labelTrue": "Yes",
+          "labelFalse": "No"
+        }
+      ]
+    },
+    {
+      "name": "page3",
+      "title": "Additional Comments",
+      "elements": [
+        {
+          "type": "comment",
+          "name": "improvements",
+          "title": "What improvements would you suggest?",
+          "placeholder": "Share your thoughts...",
+          "rows": 4
+        },
+        {
+          "type": "comment",
+          "name": "additional_comments",
+          "title": "Any other comments?",
+          "rows": 3
+        }
+      ]
+    }
+  ],
+  "showQuestionNumbers": "on",
+  "completeText": "Submit Feedback",
+  "showProgressBar": "top"
+}
